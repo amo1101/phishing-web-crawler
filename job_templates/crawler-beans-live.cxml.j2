@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+  <bean id="metadata" class="org.archive.modules.CrawlMetadata" autowire="byName">
+    <property name="jobName" value="${job_name}"/>
+    <property name="description" value="Live domain crawl"/>
+    <property name="userAgentTemplate" value="Mozilla/5.0 (compatible; FMA-Crawler/1.0; +https://example.org/contact)"/>
+    <property name="robotsPolicyName" value="${robots_policy}"/>
+  </bean>
+
+  <bean id="crawlController" class="org.archive.crawler.framework.CrawlController">
+    <property name="maxToeThreads" value="${max_toe_threads}"/>
+  </bean>
+
+  <bean id="crawlLimitEnforcer" class="org.archive.crawler.framework.CrawlLimitEnforcer">
+    <property name="maxTimeSeconds" value="${max_time_seconds}"/>
+    <property name="maxDocumentsDownload" value="${max_documents}"/>
+    <property name="maxBytesDownload" value="${max_bytes}"/>
+  </bean>
+
+  <!-- Use seeds.txt in this job dir -->
+  <bean id="seeds" class="org.archive.modules.seeds.TextSeedModule">
+    <property name="seedsFile" value="seeds.txt" />
+  </bean>
+
+  <!-- Action directory for dynamic seed updates (.seeds files) -->
+  <bean id="actionDirectory" class="org.archive.crawler.framework.ActionDirectory">
+    <property name="actionDir" value="action"/>
+    <property name="delaySeconds" value="30"/>
+  </bean>
+
+  <!-- Keep default processors, but restrict scope to seeds' SURT prefixes -->
+  <bean id="scope" class="org.archive.modules.deciderules.DecideRuleSequence">
+    <property name="rules">
+      <list>
+        <bean id="acceptIfSeed" class="org.archive.modules.deciderules.AcceptIfSeedDecideRule"/>
+        <!-- Accept URIs under seeds' SURT prefixes -->
+        <bean class="org.archive.modules.deciderules.SurtPrefixedDecideRule">
+          <property name="seedsAsSurtPrefixes" value="true"/>
+          <property name="alsoCheckVia" value="true"/>
+          <property name="decision" value="ACCEPT"/>
+        </bean>
+        <!-- Reject everything else -->
+        <bean class="org.archive.modules.deciderules.RejectDecideRule"/>
+      </list>
+    </property>
+  </bean>
+</beans>
