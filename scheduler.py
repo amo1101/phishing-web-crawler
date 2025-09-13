@@ -14,16 +14,16 @@ from .heritrix import Heritrix
 from .wayback import cdx_latest_snapshots_for_domain
 from .pywb_mgr import ensure_collection
 
+
 def parse_csv_urls(csv_path: Path) -> List[str]:
     urls: List[str] = []
     with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
-        # Try common column names; adjust if needed
         for row in reader:
-            for key in ("URL", "Url", "url", "Website", "Website URL"):
+            for key in ("url", "other_urls"):
                 if key in row and row[key]:
-                    urls.append(normalize_url(row[key]))
-                    break
+                    for u in row[key].split('|'):
+                        urls.append(normalize_url(u))
     return urls
 
 def run_once(cfg: Config, st: State):
@@ -32,15 +32,30 @@ def run_once(cfg: Config, st: State):
     # 1) Decide full vs incremental
     last_full = st.get_last_full_run()
     last_incr = st.get_last_incremental_run()
+    csv_root = Path(cfg["iosco"]["csv_root"])
 
     if last_full is None:
         # First run: full export
-        csv_path = fetch_iosco_csv(None, None)  # YOU implement
+        csv_path = fetch_iosco_csv(
+            csv_root=csv_root,
+            start_date=None,
+            end_date=None,
+            nca_id=int(cfg["iosco"]["nca_id"]),
+            subsection=cfg["iosco"]["subsection"],
+            timeout=int(cfg["iosco"]["request_timeout_seconds"])
+        )
         st.set_last_full_run(now)
     else:
         # Incremental from last_incremental_run (or last_full if no incr yet) to now
         start = last_incr or last_full
-        csv_path = fetch_iosco_csv(start.date(), now.date())  # YOU implement
+        csv_path = fetch_iosco_csv(
+            csv_root=csv_root,
+            start_date=start.date(),
+            end_date=now.date(),
+            nca_id=int(cfg["iosco"]["nca_id"]),
+            subsection=cfg["iosco"]["subsection"],
+            timeout=int(cfg["iosco"]["request_timeout_seconds"])
+        )
         st.set_last_incremental_run(now)
 
     # 2) Extract URLs & group by domain
@@ -78,17 +93,18 @@ def run_once(cfg: Config, st: State):
         d = registrable_domain(u)
         seeds_by_domain.setdefault(d, []).append(u)
 
-    # Live domains: (create/update) live jobs now (and mark last launch)
+    # LIVE DOMAINS
     for domain, status in domain_status.items():
         if status != "live":
             continue
-        seeds = seeds_by_domain.get(domain, [])
-        if not seeds:
+        job_name = f"live-{domain.replace('.', '-')}"
+        if heri.job_exists(job_name):
             continue
-        heri.create_or_update_live_job(domain, seeds, cfg["heritrix"])
-        st.mark_heritrix_launch(domain, now)
+        seeds = seeds_by_domain.get(domain, [])
+        if seeds:
+            heri.create_or_update_live_job(domain, seeds, cfg["heritrix"])
 
-    # Dead domains: discover latest N snapshots and create Wayback jobs
+    # DEAD DOMAINS
     if cfg["dead_site_mode"] == "heritrix_wayback":
         for domain, status in domain_status.items():
             if status != "dead":
@@ -100,10 +116,11 @@ def run_once(cfg: Config, st: State):
                 base_params=cfg["wayback"]["cdx_params"],
                 rps=cfg["wayback"]["rps"]
             )
-            if stamps:
-                heri.create_wayback_job(domain, stamps, cfg["heritrix"])
-                st.record_wayback_timestamps(domain, stamps)
-                st.mark_heritrix_launch(domain, now)
+            # Only create jobs if none exist for this domain
+            if any(heri.job_exists(f"wb-{domain.replace('.', '-')}-{ts}") for ts in stamps):
+                continue
+            heri.create_wayback_job(domain, stamps, cfg["heritrix"])
+            st.record_wayback_timestamps(domain, stamps)
 
     # If/when you switch to 'pywb_record', implement the local recording path here.
 

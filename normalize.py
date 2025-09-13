@@ -5,7 +5,7 @@ from urllib.parse import urlsplit, urlunsplit
 def normalize_url(u: str) -> str:
     """Basic normalization: strip fragments, normalize scheme/host casing."""
     parts = urlsplit(u.strip())
-    scheme = (parts.scheme or "http").lower()
+    scheme = (parts.scheme or "https").lower() # default to https
     netloc = parts.netloc.lower()
     path = parts.path or "/"
     return urlunsplit((scheme, netloc, path, parts.query, ""))

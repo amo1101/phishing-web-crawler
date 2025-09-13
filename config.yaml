@@ -1,6 +1,12 @@
 # Global paths
-state_db: /opt/fma-crawler/state.db
-warc_root: /data/warcs/fma
+state_db: /Data/scratch/cw486/phishingwebarchive/state.db
+warc_root: /Data/scratch/cw486/phishingwebarchive/fma
+
+iosco:
+  csv_root: "/opt/fma-crawler/iosco"   # or your preferred path
+  nca_id: 64
+  subsection: "main"
+  request_timeout_seconds: 60
 
 # Scheduling
 schedule:
@@ -18,7 +24,7 @@ heritrix:
   base_url: "https://localhost:8443"
   username: "admin"
   password: "admin"
-  jobs_dir: "/var/lib/heritrix/jobs"  # adjust to your actual path
+  jobs_dir: "/Data/scratch/cw486/phishingwebarchive/heritrix-3.10.2/jobs"  # adjust to your actual path
   max_toe_threads: 50
   robots_policy: "obey"               # obey|ignore|robotsTxtOnly|classic
   limits:
@@ -37,7 +43,7 @@ pywb:
 # Dead-site acquisition
 dead_site_mode: "heritrix_wayback"    # default working path; "pywb_record" kept for future switch
 wayback:
-  snapshots_per_domain: 2
+  snapshots_per_domain: 1
   rps: 0.5                            # polite limit to web.archive.org
   cdx_endpoint: "https://web.archive.org/cdx/search/cdx"
   # CDX options reflect Wayback CDX Server API
@@ -47,3 +53,13 @@ wayback:
     fl: "timestamp,original,statuscode,digest"
     filter: "statuscode:200"
     collapse: "digest"
+
+# Dashboard
+web:
+  enable_status_page: true
+  host: "127.0.0.1"
+  port: 8090
+  basic_auth:
+    enabled: false
+    username: "admin"
+    password: "change-me"

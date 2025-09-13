@@ -1,0 +1,17 @@
+[Unit]
+Description=FMA Crawl Status Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=crawl
+Group=crawl
+WorkingDirectory=/opt/fma-crawler
+ExecStart=/opt/fma-crawler/venv/bin/python -m fma.webapp --config /opt/fma-crawler/config.yaml
+Restart=always
+RestartSec=10s
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

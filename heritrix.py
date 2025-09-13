@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import requests
 
-LIVE_TEMPLATE = "fma/job_templates/crawler-beans-live.cxml.j2"
-WAYBACK_TEMPLATE = "fma/job_templates/crawler-beans-wayback.cxml.j2"
+LIVE_TEMPLATE = "job_templates/crawler-beans-live.cxml.j2"
+WAYBACK_TEMPLATE = "job_templates/crawler-beans-wayback.cxml.j2"
 
 class Heritrix:
     def __init__(self, base_url: str, username: str, password: str, jobs_dir: str, tls_verify: bool):
@@ -98,3 +98,21 @@ class Heritrix:
             self.launch_job(job_name)
             job_names.append(job_name)
         return job_names
+
+    def job_exists(self, job_name: str) -> bool:
+        return (self.jobs_dir / job_name).exists()
+
+    def get_job_status(self, job_name: str) -> str:
+        """
+        Best-effort: query job page and regex out status label.
+        Returns: RUNNING | PAUSED | FINISHED | UNBUILT | UNKNOWN
+        """
+        try:
+            r = requests.get(f"{self.base}/engine/job/{job_name}",
+                             auth=self.auth, verify=self.tls_verify, timeout=10)
+            r.raise_for_status()
+            # Heritrix UI contains status token; we try to capture it
+            m = re.search(r"(?i)Status:\s*([A-Z]+)", r.text)
+            return m.group(1) if m else "UNKNOWN"
+        except Exception:
+            return "UNKNOWN"
