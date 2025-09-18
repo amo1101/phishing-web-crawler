@@ -2,10 +2,11 @@
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
   <bean id="metadata" class="org.archive.modules.CrawlMetadata" autowire="byName">
     <property name="jobName" value="${job_name}"/>
-    <property name="description" value="Wayback snapshot crawl ${timestamp} for ${domain}"/>
-    <property name="userAgentTemplate" value="Mozilla/5.0 (compatible; FMA-Crawler/1.0; +https://example.org/contact)"/>
+    <property name="description" value="Wayback crawl: latest timestamp for provided URL seeds; same-site & same-timestamp scope"/>
+    <property name="userAgentTemplate" value="Mozilla/5.0 (compatible; Phising-Web-Crawler/1.0; +https://example.org/contact)"/>
     <property name="robotsPolicyName" value="${robots_policy}"/>
   </bean>
 
@@ -28,17 +29,16 @@
     <property name="delaySeconds" value="30"/>
   </bean>
 
-  <!-- Strictly limit to web.archive.org paths for this timestamp and domain -->
+  <!-- Limit to this timestamp & this domain (incl. subdomains); use non-id_ seeds to enable rewritten link traversal -->
   <bean id="scope" class="org.archive.modules.deciderules.DecideRuleSequence">
     <property name="rules">
       <list>
-        <!-- accept exact timestamp path -->
         <bean class="org.archive.modules.deciderules.MatchesListRegexDecideRule">
           <property name="decision" value="ACCEPT"/>
           <property name="list">
             <list>
-              <!-- Allow both http and https originals within this snapshot -->
-              <value>^https?://web\\.archive\\.org/web/${timestamp}[^/]*/https?://([^.]+\\.)?${domain}/.*</value>
+              <value>^https?://web\.archive\.org/web/${timestamp}[^/]*/https?://([^.]+\.)?${domain}/.*</value>
+              <value>^https?://web\.archive\.org/web/${timestamp}[^/]*/http://([^.]+\.)?${domain}/.*</value>
             </list>
           </property>
         </bean>

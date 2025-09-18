@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import sqlite3
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict
@@ -14,11 +15,11 @@ CREATE TABLE IF NOT EXISTS meta (
 
 CREATE TABLE IF NOT EXISTS domains (
   domain TEXT PRIMARY KEY,
-  last_live_status TEXT,          -- 'live' | 'dead' | NULL
-  last_seen TIMESTAMP,            -- when we saw it in CSV
-  last_heritrix_launch TIMESTAMP, -- last time we launched a crawl for this domain
-  job_kind TEXT,                  -- 'live' or 'wayback' (most recent mode used)
-  wayback_timestamps TEXT         -- comma-separated list of timestamps last used
+  last_live_status TEXT,
+  last_seen TIMESTAMP,
+  last_heritrix_launch TIMESTAMP,
+  job_kind TEXT,
+  wayback_timestamps TEXT
 );
 
 CREATE TABLE IF NOT EXISTS urls (
@@ -28,7 +29,24 @@ CREATE TABLE IF NOT EXISTS urls (
   last_seen TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,            -- LIVE_CREATE | LIVE_RELAUNCH | WAYBACK_CREATE
+  domain TEXT NOT NULL,
+  payload TEXT,                  -- JSON (e.g., {"seeds":[...]} or {"timestamps":[...], "job_names":[...]})
+  status TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING | RUNNING | SUCCEEDED | FAILED | SKIPPED
+  priority INTEGER NOT NULL DEFAULT 100,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  started_at TIMESTAMP,
+  finished_at TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_urls_domain ON urls(domain);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, priority, created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_domain ON jobs(domain);
 """
 
 class State:
@@ -105,3 +123,100 @@ class State:
     def list_all_domains(self) -> List[str]:
         rows = self.conn.execute("SELECT domain FROM domains").fetchall()
         return [r[0] for r in rows]
+
+    # --- JOB QUEUE HELPERS (used by jobqueue.py and scheduler) ---
+    def enqueue_job_unique(self, job_type: str, domain: str, payload: dict, priority: int = 100) -> int | None:
+        """
+        Insert a PENDING job if there is no other PENDING job of the same type+domain.
+        Return job id or None if skipped.
+        """
+        cur = self.conn.cursor()
+        row = cur.execute(
+            "SELECT id FROM jobs WHERE type=? AND domain=? AND status='PENDING' LIMIT 1",
+            (job_type, domain)
+        ).fetchone()
+        if row:
+            return None
+        now = datetime.utcnow().isoformat()
+        cur.execute(
+            """INSERT INTO jobs(type,domain,payload,status,priority,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?)""",
+            (job_type, domain, json.dumps(payload or {}), "PENDING", priority, now, now)
+        )
+        return cur.lastrowid
+
+    def fetch_next_pending(self, limit: int) -> list[dict]:
+        rows = self.conn.execute(
+            """SELECT id,type,domain,payload,priority,attempts FROM jobs
+               WHERE status='PENDING'
+               ORDER BY priority ASC, created_at ASC
+               LIMIT ?""", (limit,)
+        ).fetchall()
+        out = []
+        for r in rows:
+            out.append({
+                "id": r[0], "type": r[1], "domain": r[2],
+                "payload": json.loads(r[3] or "{}"),
+                "priority": r[4], "attempts": r[5],
+            })
+        return out
+
+    def mark_running(self, job_id: int):
+        now = datetime.utcnow().isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET status='RUNNING', started_at=?, updated_at=? WHERE id=?",
+            (now, now, job_id)
+        )
+
+    def mark_succeeded(self, job_id: int):
+        now = datetime.utcnow().isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET status='SUCCEEDED', finished_at=?, updated_at=? WHERE id=?",
+            (now, now, job_id)
+        )
+
+    def mark_failed(self, job_id: int, error: str, max_retries: int):
+        cur = self.conn.cursor()
+        now = datetime.utcnow().isoformat()
+        row = cur.execute("SELECT attempts FROM jobs WHERE id=?", (job_id,)).fetchone()
+        attempts = (row[0] if row else 0) + 1
+        if attempts >= max_retries:
+            self.conn.execute(
+                "UPDATE jobs SET status='FAILED', attempts=?, last_error=?, finished_at=?, updated_at=? WHERE id=?",
+                (attempts, error[:2000], now, now, job_id)
+            )
+        else:
+            # Put back to PENDING for retry
+            self.conn.execute(
+                "UPDATE jobs SET status='PENDING', attempts=?, last_error=?, updated_at=? WHERE id=?",
+                (attempts, error[:2000], now, job_id)
+            )
+
+    def mark_skipped(self, job_id: int, reason: str = ""):
+        now = datetime.utcnow().isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET status='SKIPPED', last_error=?, finished_at=?, updated_at=? WHERE id=?",
+            (reason[:2000], now, now, job_id)
+        )
+
+    def count_running_jobs(self) -> int:
+        row = self.conn.execute("SELECT COUNT(*) FROM jobs WHERE status='RUNNING'").fetchone()
+        return row[0] if row else 0
+
+    def list_running_jobs(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id,type,domain,payload FROM jobs WHERE status='RUNNING'"
+        ).fetchall()
+        out = []
+        for r in rows:
+            out.append({
+                "id": r[0], "type": r[1], "domain": r[2], "payload": json.loads(r[3] or "{}")
+            })
+        return out
+
+    def update_job_payload(self, job_id: int, payload: dict):
+        now = datetime.utcnow().isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET payload=?, updated_at=? WHERE id=?",
+            (json.dumps(payload or {}), now, job_id)
+        )

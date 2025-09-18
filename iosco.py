@@ -26,7 +26,7 @@ def fetch_iosco_csv(
     if start_date and end_date:
         csv_name = f"iosco_export_{start_date.isoformat()}_to_{end_date.isoformat()}.csv"
     else:
-        csv_name = f"iosco_export_all_{date.today().isoformat()}.csv"
+        csv_name = f"iosco_export_full_{date.today().isoformat()}.csv"
     out_path = csv_root / csv_name
 
     # 3) Build URL & params safely
@@ -42,7 +42,7 @@ def fetch_iosco_csv(
         params["ValidationDateEnd"]   = end_date.isoformat()
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; FMA-Crawler/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; Phishing-Web-Crawler/1.0)",
         "Accept": "text/csv, application/octet-stream; q=0.9, */*; q=0.1",
     }
 

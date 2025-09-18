@@ -1,8 +1,10 @@
 from __future__ import annotations
 import argparse
+import threading
 from .config import Config
 from .state import State
 from .scheduler import run_loop
+from .jobqueue import JobQueueWorker
 
 def main():
     ap = argparse.ArgumentParser()
@@ -12,7 +14,13 @@ def main():
     cfg = Config.load(args.config)
     st = State(cfg["state_db"])
 
-    run_loop(cfg, st)
+    # Start the job-queue worker in background
+    worker = JobQueueWorker(cfg, st)
+    t = threading.Thread(target=worker.run_forever, name="jobqueue-worker", daemon=True)
+    t.start()
+
+    # Run the scheduler loop (blocks)
+    run_loop(cfg, st, worker_thread=t)
 
 if __name__ == "__main__":
     main()

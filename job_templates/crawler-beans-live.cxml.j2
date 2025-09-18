@@ -2,11 +2,12 @@
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
   <bean id="metadata" class="org.archive.modules.CrawlMetadata" autowire="byName">
     <property name="jobName" value="${job_name}"/>
-    <property name="description" value="Live domain crawl"/>
+    <property name="description" value="Live crawl: start at provided URLs; same-site recursive via SURT"/>
     <property name="userAgentTemplate" value="Mozilla/5.0 (compatible; Phishing-Web-Crawler/1.0; +https://example.org/contact)"/>
-    <property name="robotsPolicyName" value="${robots_policy}"/>
+    <property name="robotsPolicyName" value="${robots_policy}"/> <!-- obey|ignore|robotsTxtOnly|classic -->
   </bean>
 
   <bean id="crawlController" class="org.archive.crawler.framework.CrawlController">
@@ -19,29 +20,28 @@
     <property name="maxBytesDownload" value="${max_bytes}"/>
   </bean>
 
-  <!-- Use seeds.txt in this job dir -->
+  <!-- Seeds are your provided URLs -->
   <bean id="seeds" class="org.archive.modules.seeds.TextSeedModule">
     <property name="seedsFile" value="seeds.txt" />
   </bean>
 
-  <!-- Action directory for dynamic seed updates (.seeds files) -->
+  <!-- Allow seed updates at runtime (drop .seeds files) -->
   <bean id="actionDirectory" class="org.archive.crawler.framework.ActionDirectory">
     <property name="actionDir" value="action"/>
     <property name="delaySeconds" value="30"/>
   </bean>
 
-  <!-- Keep default processors, but restrict scope to seeds' SURT prefixes -->
+  <!-- SAME-SITE SCOPING via SURT prefixes loaded from surts.txt -->
   <bean id="scope" class="org.archive.modules.deciderules.DecideRuleSequence">
     <property name="rules">
       <list>
-        <bean id="acceptIfSeed" class="org.archive.modules.deciderules.AcceptIfSeedDecideRule"/>
-        <!-- Accept URIs under seeds' SURT prefixes -->
-        <bean class="org.archive.modules.deciderules.SurtPrefixedDecideRule">
-          <property name="seedsAsSurtPrefixes" value="true"/>
-          <property name="alsoCheckVia" value="true"/>
+        <bean class="org.archive.modules.deciderules.RejectDecideRule"/>
+        <bean class="org.archive.modules.deciderules.AcceptIfSeedDecideRule"/>
+        <bean class="org.archive.modules.deciderules.surt.SurtPrefixedDecideRule">
+          <property name="surtsSourceFile" value="surts.txt"/>
+          <property name="alsoCheckVia" value="false"/> <!-- set true if you want one-hop offsite embeds -->
           <property name="decision" value="ACCEPT"/>
         </bean>
-        <!-- Reject everything else -->
         <bean class="org.archive.modules.deciderules.RejectDecideRule"/>
       </list>
     </property>

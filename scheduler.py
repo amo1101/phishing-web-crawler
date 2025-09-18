@@ -11,8 +11,9 @@ from .normalize import normalize_url, registrable_domain
 from .iosco import fetch_iosco_csv
 from .liveness import classify_domains
 from .heritrix import Heritrix
-from .wayback import cdx_latest_snapshots_for_domain
+from .wayback import cdx_latest_snapshots_for_url
 from .pywb_mgr import ensure_collection
+from .jobqueue import LIVE_CREATE, WAYBACK_CREATE, LIVE_RELAUNCH
 
 
 def parse_csv_urls(csv_path: Path) -> List[str]:
@@ -87,42 +88,46 @@ def run_once(cfg: Config, st: State):
         tls_verify=cfg["heritrix"]["tls_verify"]
     )
 
-    # Build seeds list per domain (from the URLs we just saw)
+    # seeds_by_domain from provided URLs
     seeds_by_domain: Dict[str, List[str]] = {}
     for u in urls:
         d = registrable_domain(u)
         seeds_by_domain.setdefault(d, []).append(u)
 
-    # LIVE DOMAINS
+    # Live: create or append seeds
     for domain, status in domain_status.items():
         if status != "live":
             continue
         job_name = f"live-{domain.replace('.', '-')}"
+        domain_seeds = sorted(set(seeds_by_domain.get(domain, [])))
+        if not domain_seeds:
+            continue
+        if heri.job_exists(job_name):
+            heri.append_seeds(job_name, domain_seeds)  # ActionDirectory
+        else:
+            st.enqueue_job_unique(LIVE_CREATE, domain, {"seeds": domain_seeds}, priority=50)
+
+    # Dead: per-URL CDX; group seeds per (domain, timestamp)
+    seeds_by_d_ts: Dict[tuple[str,str], set[str]] = {}
+    for u in urls:
+        d = registrable_domain(u)
+        if domain_status.get(d) != "dead":
+            continue
+        stamps = cdx_latest_snapshots_for_url(
+            url=u,
+            n=cfg["wayback"]["snapshots_per_domain"],
+            cdx_endpoint=cfg["wayback"]["cdx_endpoint"],
+            base_params=cfg["wayback"]["cdx_params"],
+            rps=cfg["wayback"]["rps"]
+        )
+        for ts in stamps:
+            seeds_by_d_ts.setdefault((d, ts), set()).add(u)
+
+    for (d, ts), urlset in seeds_by_d_ts.items():
+        job_name = f"wb-{d.replace('.', '-')}-{ts}"
         if heri.job_exists(job_name):
             continue
-        seeds = seeds_by_domain.get(domain, [])
-        if seeds:
-            heri.create_or_update_live_job(domain, seeds, cfg["heritrix"])
-
-    # DEAD DOMAINS
-    if cfg["dead_site_mode"] == "heritrix_wayback":
-        for domain, status in domain_status.items():
-            if status != "dead":
-                continue
-            stamps = cdx_latest_snapshots_for_domain(
-                domain=domain,
-                n=cfg["wayback"]["snapshots_per_domain"],
-                cdx_endpoint=cfg["wayback"]["cdx_endpoint"],
-                base_params=cfg["wayback"]["cdx_params"],
-                rps=cfg["wayback"]["rps"]
-            )
-            # Only create jobs if none exist for this domain
-            if any(heri.job_exists(f"wb-{domain.replace('.', '-')}-{ts}") for ts in stamps):
-                continue
-            heri.create_wayback_job(domain, stamps, cfg["heritrix"])
-            st.record_wayback_timestamps(domain, stamps)
-
-    # If/when you switch to 'pywb_record', implement the local recording path here.
+        st.enqueue_job_unique(WAYBACK_CREATE, d, {"timestamp": ts, "url_seeds": sorted(urlset)}, priority=60)
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
@@ -133,35 +138,29 @@ def _next_daily_time(local_hhmm: str) -> float:
         target += timedelta(days=1)
     return (target - now).total_seconds()
 
+def enqueue_cadence_relaunches(cfg: Config, st: State):
+    # Only relaunch live domains according to cadence; skip wayback
+    due_domains = st.get_domains_due_for_heritrix(cfg["schedule"]["heritrix_job_interval_days"])
+    from .jobqueue import LIVE_RELAUNCH
+    for d in due_domains:
+        st.enqueue_job_unique(LIVE_RELAUNCH, d, {}, priority=70)
+
 def run_loop(cfg: Config, st: State):
     while True:
         try:
-            # Daily run
+            # Wait until next daily time
             wait_s = _next_daily_time(cfg["schedule"]["daily_run_time"])
             time.sleep(wait_s)
+
+            # Daily ingestion -> enqueue jobs
             run_once(cfg, st)
 
-            # After daily run, also (re)launch due Heritrix jobs by cadence
-            due_domains = st.get_domains_due_for_heritrix(cfg["schedule"]["heritrix_job_interval_days"])
-            if due_domains:
-                # Minimal: just trigger live jobs again (we’ll reuse seeds file from last run)
-                heri = Heritrix(
-                    base_url=cfg["heritrix"]["base_url"],
-                    username=cfg["heritrix"]["username"],
-                    password=cfg["heritrix"]["password"],
-                    jobs_dir=cfg["heritrix"]["jobs_dir"],
-                    tls_verify=cfg["heritrix"]["tls_verify"]
-                )
-                for d in due_domains:
-                    # (Re)build+launch by job name if needed; simplest is to build & launch again:
-                    job_name = f"live-{d.replace('.', '-')}"
-                    try:
-                        heri.build_job(job_name)
-                        heri.launch_job(job_name)
-                        st.mark_heritrix_launch(d)
-                    except Exception:
-                        # silently continue; we could log this
-                        pass
+            # Enqueue relaunches for due live domains
+            enqueue_cadence_relaunches(cfg, st)
+
+            # Sleep a short period before recalculating
+            time.sleep(5)
+
         except Exception:
-            # In systemd, we restart on any crash; you can add logging here
+            # Log if you add logging; keep process alive for systemd
             time.sleep(5)

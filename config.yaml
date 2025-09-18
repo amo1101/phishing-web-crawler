@@ -3,7 +3,7 @@ state_db: /Data/scratch/cw486/phishingwebarchive/state.db
 warc_root: /Data/scratch/cw486/phishingwebarchive/fma
 
 iosco:
-  csv_root: "/opt/fma-crawler/iosco"   # or your preferred path
+  csv_root: "/Data/scratch/cw486/phishingwebarchive/iosco"
   nca_id: 64
   subsection: "main"
   request_timeout_seconds: 60
@@ -12,6 +12,12 @@ iosco:
 schedule:
   daily_run_time: "02:00"     # local time for the daily ingestion + orchestration (24h)
   heritrix_job_interval_days: 7
+
+queue:
+  max_parallel_jobs: 3           # how many queue jobs can be RUNNING at once
+  reconcile_interval_seconds: 30 # how often the worker polls Heritrix to refresh job statuses
+  max_retries: 2                 # retry failed queue jobs (create/launch errors)
+  retry_backoff_seconds: 60      # wait before retrying a failed job
 
 # Liveness
 liveness:
@@ -24,8 +30,8 @@ heritrix:
   base_url: "https://localhost:8443"
   username: "admin"
   password: "admin"
-  jobs_dir: "/Data/scratch/cw486/phishingwebarchive/heritrix-3.10.2/jobs"  # adjust to your actual path
-  max_toe_threads: 50
+  jobs_dir: "/Data/scratch/cw486/phishingwebarchive/heritrix-3.10.2/jobs"
+  max_toe_threads: 5
   robots_policy: "obey"               # obey|ignore|robotsTxtOnly|classic
   limits:
     max_time_seconds: 3600
@@ -41,14 +47,13 @@ pywb:
   wb_manager_bin: "wb-manager"        # must be in PATH for the service user
 
 # Dead-site acquisition
-dead_site_mode: "heritrix_wayback"    # default working path; "pywb_record" kept for future switch
 wayback:
   snapshots_per_domain: 1
   rps: 0.5                            # polite limit to web.archive.org
   cdx_endpoint: "https://web.archive.org/cdx/search/cdx"
   # CDX options reflect Wayback CDX Server API
   cdx_params:
-    matchType: "domain"
+    matchType: "exact"
     output: "json"
     fl: "timestamp,original,statuscode,digest"
     filter: "statuscode:200"
@@ -62,4 +67,4 @@ web:
   basic_auth:
     enabled: false
     username: "admin"
-    password: "change-me"
+    password: "admin"
