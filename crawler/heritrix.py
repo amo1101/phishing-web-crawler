@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import requests
 
-LIVE_TEMPLATE = "job_templates/crawler-beans-live.cxml.j2"
-WAYBACK_TEMPLATE = "job_templates/crawler-beans-wayback.cxml.j2"
+LIVE_TEMPLATE = "crawler/job_templates/crawler-beans-live.cxml.j2"
+WAYBACK_TEMPLATE = "crawler/job_templates/crawler-beans-wayback.cxml.j2"
 
 def _surt_for_registrable_domain(domain: str) -> str:
     # example.co.nz -> http://(nz,co,example,)/

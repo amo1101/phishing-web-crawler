@@ -47,6 +47,14 @@ class JobQueueWorker:
             ts = payload["timestamp"]; url_seeds = payload["url_seeds"]
             name = self.heri.create_wayback_job_with_seeds(domain, ts, url_seeds, self.cfg["heritrix"])
             payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
+            cur = self.state.conn.execute(
+                "SELECT wayback_timestamps FROM domains WHERE domain=?", (domain,)
+            ).fetchone()
+            existing = set()
+            if cur and cur[0]:
+                existing = set([s for s in cur[0].split(",") if s])
+            existing.add(ts)
+            self.state.record_wayback_timestamps(domain, sorted(existing))
 
         else:
             self.state.mark_skipped(job["id"], f"unknown job type {jtype}")
