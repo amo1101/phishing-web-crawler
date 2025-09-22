@@ -68,3 +68,12 @@ web:
     enabled: false
     username: "admin"
     password: "admin"
+
+logging:
+  level: INFO                 # DEBUG | INFO | WARNING | ERROR
+  file: "logs\\app.log"
+  rotate:
+    when: "midnight"          # Timed rotation; alternatives: "S","M","H","D","W0"-"W6"
+    backupCount: 14           # keep last 14 files
+  console: true               # also log to stdout (useful in dev)
+  json: false                 # set true if you prefer JSON logs

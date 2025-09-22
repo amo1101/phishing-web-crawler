@@ -15,6 +15,9 @@ from .wayback import cdx_latest_snapshots_for_url
 from .pywb_mgr import ensure_collection
 from .jobqueue import LIVE_CREATE, WAYBACK_CREATE, LIVE_RELAUNCH
 
+import logging
+log = logging.getLogger(__name__)
+
 
 def parse_csv_urls(csv_path: Path) -> List[str]:
     urls: List[str] = []
@@ -29,6 +32,7 @@ def parse_csv_urls(csv_path: Path) -> List[str]:
 
 def run_once(cfg: Config, st: State):
     now = datetime.now(timezone.utc)
+    log.info("Daily run started at %s", now.isoformat())
 
     # 1) Decide full vs incremental
     last_full = st.get_last_full_run()
@@ -59,10 +63,10 @@ def run_once(cfg: Config, st: State):
         )
         st.set_last_incremental_run(now)
 
-    print(f"csv_path: {csv_path}")
     # 2) Extract URLs & group by domain
     urls = parse_csv_urls(csv_path)
-    print(f"urls: {urls}")
+    log.info("Parsed %d URLs from CSV %s", len(urls), csv_path)
+
     seen_at = now
     for u in urls:
         d = registrable_domain(u)
@@ -77,8 +81,6 @@ def run_once(cfg: Config, st: State):
     )
     for d, s in domain_status.items():
         st.set_domain_status(d, s)
-    
-    print(f"domain_status: {domain_status}")
 
     # 4) Ensure Pywb collection exists
     ensure_collection(cfg["pywb"]["collection"], cfg["pywb"]["wb_manager_bin"])
@@ -108,13 +110,15 @@ def run_once(cfg: Config, st: State):
         domain_seeds = sorted(set(seeds_by_domain.get(domain, [])))
         if not domain_seeds:
             continue
-        print(f"job_name: {job_name}, domain_seeds {domain_seeds}")
         if heri.job_exists(job_name):
+            log.info("Appending %d seeds to existing live job %s", len(domain_seeds), job_name)
             heri.append_seeds(job_name, domain_seeds)  # ActionDirectory
         else:
             st.enqueue_job_unique(LIVE_CREATE, domain, {"seeds": domain_seeds}, priority=50)
+            log.info("Enqueued LIVE_CREATE for %s with %d seeds", domain, len(domain_seeds))
 
     # Dead: per-URL CDX; group seeds per (domain, timestamp)
+    log.info("Discovering Wayback timestamps for dead URLs")
     seeds_by_d_ts: Dict[tuple[str,str], set[str]] = {}
     for u in urls:
         d = registrable_domain(u)
@@ -130,11 +134,14 @@ def run_once(cfg: Config, st: State):
         for ts in stamps:
             seeds_by_d_ts.setdefault((d, ts), set()).add(u)
 
+    log.info("Wayback groups prepared: %d (domain,timestamp) pairs", len(seeds_by_d_ts))
     for (d, ts), urlset in seeds_by_d_ts.items():
         job_name = f"wb-{d.replace('.', '-')}-{ts}"
         if heri.job_exists(job_name):
+            log.info("Wayback job already exists: %s (skipping)", job_name)
             continue
         st.enqueue_job_unique(WAYBACK_CREATE, d, {"timestamp": ts, "url_seeds": sorted(urlset)}, priority=60)
+        log.info("Enqueued WAYBACK_CREATE %s ts=%s seeds=%d", d, ts, len(urlset))
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm

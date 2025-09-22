@@ -4,6 +4,9 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict
 from datetime import datetime, timezone
+import logging
+
+log = logging.getLogger(__name__)
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -60,6 +63,7 @@ class State:
     def _init_db(self):
         cur = self.conn.cursor()
         cur.executescript(SCHEMA)
+        log.info("SQLite state initialized at %s", self.db_path)
 
     # --- meta helpers ---
     def get_meta(self, key: str) -> Optional[str]:
@@ -95,6 +99,7 @@ class State:
         # update domain last seen
         self.conn.execute("INSERT INTO domains(domain,last_seen) VALUES(?,?) ON CONFLICT(domain) DO UPDATE SET last_seen=excluded.last_seen",
                           (domain, seen_at.isoformat()))
+        log.debug("Upsert url=%s domain=%s seen_at=%s", url, domain, seen_at.isoformat())
 
     def set_domain_status(self, domain: str, status: str):
         self.conn.execute("INSERT INTO domains(domain,last_live_status) VALUES(?,?) ON CONFLICT(domain) DO UPDATE SET last_live_status=excluded.last_live_status",
@@ -136,6 +141,7 @@ class State:
             (job_type, domain)
         ).fetchone()
         if row:
+            log.debug("Skip enqueue: existing PENDING type=%s domain=%s", job_type, domain)
             return None
         now = datetime.utcnow().isoformat()
         cur.execute(
@@ -143,6 +149,7 @@ class State:
                VALUES(?,?,?,?,?,?,?)""",
             (job_type, domain, json.dumps(payload or {}), "PENDING", priority, now, now)
         )
+        log.info("Enqueued job type=%s domain=%s priority=%s", job_type, domain, priority)
         return cur.lastrowid
 
     def fetch_next_pending(self, limit: int) -> list[dict]:

@@ -6,6 +6,9 @@ from typing import Dict, List
 from datetime import datetime
 from .state import State
 from .heritrix import Heritrix
+import logging, time
+
+log = logging.getLogger(__name__)
 
 # Queue job types
 LIVE_CREATE = "LIVE_CREATE"
@@ -35,16 +38,19 @@ class JobQueueWorker:
         payload = job["payload"] or {}
 
         if jtype == LIVE_CREATE:
+            log.info("LIVE_CREATE domain=%s", domain)
             name = self.heri.create_or_update_live_job(domain, payload.get("seeds", []), self.cfg["heritrix"])
             payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
 
         elif jtype == LIVE_RELAUNCH:
+            log.info("LIVE_RELAUNCH domain=%s", domain)
             jn = f"live-{domain.replace('.', '-')}"
             self.heri.build_job(jn); self.heri.launch_job(jn)
             payload["job_names"] = [jn]; self.state.update_job_payload(job["id"], payload)
 
         elif jtype == WAYBACK_CREATE:
             ts = payload["timestamp"]; url_seeds = payload["url_seeds"]
+            log.info("WAYBACK_CREATE domain=%s ts=%s seeds=%d", domain, ts, len(url_seeds))
             name = self.heri.create_wayback_job_with_seeds(domain, ts, url_seeds, self.cfg["heritrix"])
             payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
             cur = self.state.conn.execute(
@@ -82,37 +88,33 @@ class JobQueueWorker:
         backoff = int(self.cfg["queue"]["retry_backoff_seconds"])
 
         last_reconcile = 0
+        log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds", max_parallel, reconcile_every)
         while not self._stop.is_set():
             now = time.time()
-
-            # 1) Reconcile periodically
             if now - last_reconcile >= reconcile_every:
                 try:
                     self._reconcile()
+                    running = self.state.count_running_jobs()
+                    log.debug("Reconciled queue; currently running=%d", running)
                 except Exception:
-                    pass
+                    log.exception("Reconcile failed")
                 last_reconcile = now
 
-            # 2) Check how many RUNNING
-            running_count = self.state.count_running_jobs()
-            capacity = max_parallel - running_count
+            capacity = max_parallel - self.state.count_running_jobs()
             if capacity <= 0:
-                time.sleep(1)
-                continue
+                time.sleep(0.5); continue
 
-            # 3) Fetch up to 'capacity' pending jobs and start them
             jobs = self.state.fetch_next_pending(limit=capacity)
             if not jobs:
-                time.sleep(1)
-                continue
+                time.sleep(0.5); continue
 
             for job in jobs:
-                # mark RUNNING first (so concurrency is accurate)
                 self.state.mark_running(job["id"])
+                log.info("Dequeued -> RUNNING id=%s type=%s domain=%s", job["id"], job["type"], job["domain"])
                 try:
                     self._handle_job(job)
-                    # leave as RUNNING: reconcile loop will mark SUCCEEDED when underlying jobs finish
+                    # leave RUNNING; _reconcile will mark SUCCEEDED when job(s) finish
                 except Exception as ex:
+                    log.exception("Job %s failed in handler", job["id"])
                     self.state.mark_failed(job["id"], str(ex), max_retries=max_retries)
-                    # if it was put back to PENDING, wait a bit to avoid tight loop
                     time.sleep(backoff)

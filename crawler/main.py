@@ -1,8 +1,9 @@
 from __future__ import annotations
 import argparse
-import threading
+import logging, threading
 from .config import Config
 from .state import State
+from .logging_setup import setup_logging
 from .scheduler import run_loop
 from .jobqueue import JobQueueWorker
 
@@ -12,6 +13,10 @@ def main():
     args = ap.parse_args()
 
     cfg = Config.load(args.config)
+    setup_logging(cfg.data)
+    log = logging.getLogger(__name__)
+    log.info("Starting FMA crawler with config: %s", args.config)
+
     st = State(cfg["state_db"])
 
     # Start the job-queue worker in background

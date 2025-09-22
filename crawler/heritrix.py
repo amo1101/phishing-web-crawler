@@ -2,7 +2,9 @@ from __future__ import annotations
 import os, time, re
 from pathlib import Path
 from typing import List, Dict, Optional
-import requests
+import logging, requests
+
+log = logging.getLogger(__name__)
 
 LIVE_TEMPLATE = "crawler/job_templates/crawler-beans-live.cxml.j2"
 WAYBACK_TEMPLATE = "crawler/job_templates/crawler-beans-wayback.cxml.j2"
@@ -11,7 +13,9 @@ def _surt_for_registrable_domain(domain: str) -> str:
     # example.co.nz -> http://(nz,co,example,)/
     parts = domain.strip(".").split(".")
     rev = ",".join(reversed(parts)) + ","
-    return f"http://({rev})/"
+    surt = f"http://({rev})/"
+    log.debug("Built SURT for domain %s -> %s", domain, surt)
+    return surt
 
 class Heritrix:
     def __init__(self, base_url: str, username: str, password: str, jobs_dir: str, tls_verify: bool):
@@ -19,9 +23,12 @@ class Heritrix:
         self.auth = (username, password)
         self.jobs_dir = Path(jobs_dir)
         self.tls_verify = tls_verify
+        log.info("Heritrix client initialized: base=%s, jobs_dir=%s, verify=%s", self.base, self.jobs_dir, self.tls_verify)
 
     def _post(self, url: str, data: Dict[str, str]) -> None:
-        r = requests.post(url, data=data, auth=self.auth, verify=self.tls_verify, timeout=30)
+        log.debug("POST %s data=%s", url, data)
+        r = requests.post(url, data=data, auth=self.auth, verify=self.tls_verify, timeout=60)
+        log.debug("POST %s -> %s", url, r.status_code)
         r.raise_for_status()
 
     def add_job_dir(self, job_dir: Path) -> None:
@@ -32,16 +39,19 @@ class Heritrix:
 
     def launch_job(self, job_name: str) -> None:
         self._post(f"{self.base}/engine/job/{job_name}", {"action":"launch"})
+        log.info("Launched Heritrix job %s", job_name)
 
     def job_exists(self, job_name: str) -> bool:
         return (self.jobs_dir / job_name).exists()
 
     def append_seeds(self, job_name: str, seeds: List[str]) -> None:
+        from datetime import datetime
         action_dir = self.jobs_dir / job_name / "action"
         action_dir.mkdir(parents=True, exist_ok=True)
-        from datetime import datetime
         stamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        (action_dir / f"append-{stamp}.seeds").write_text("\n".join(sorted(set(seeds))) + "\n", encoding="utf-8")
+        p = action_dir / f"append-{stamp}.seeds"
+        p.write_text("\n".join(sorted(set(seeds))) + "\n", encoding="utf-8")
+        log.info("Appended %d seeds to %s: %s", len(seeds), job_name, p)
 
     # --- LIVE job: provided URLs + domain SURT scope ---
     def create_or_update_live_job(self, domain: str, seeds: List[str], cfg: Dict) -> str:
@@ -50,6 +60,7 @@ class Heritrix:
         (job_dir / "action").mkdir(parents=True, exist_ok=True)
         (job_dir / "seeds.txt").write_text("\n".join(sorted(set(seeds))) + "\n", encoding="utf-8")
         (job_dir / "surts.txt").write_text(_surt_for_registrable_domain(domain) + "\n", encoding="utf-8")
+        log.info("Prepared live job %s seeds=%d dir=%s", job_name, len(seeds), job_dir)
 
         cxml = (Path(LIVE_TEMPLATE).read_text(encoding="utf-8")
                 .replace("${job_name}", job_name)
@@ -77,6 +88,7 @@ class Heritrix:
             elif u.startswith("https://web.archive.org/web/"):
                 replay_seeds.append(u)
         (job_dir / "seeds.txt").write_text("\n".join(replay_seeds) + "\n", encoding="utf-8")
+        log.info("Prepared wayback job %s ts=%s seeds=%d dir=%s", job_name, ts, len(replay_seeds), job_dir)
 
         cxml = (Path(WAYBACK_TEMPLATE).read_text(encoding="utf-8")
                 .replace("${job_name}", job_name)

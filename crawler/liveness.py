@@ -5,6 +5,9 @@ import concurrent.futures as cf
 from typing import Tuple, Dict, List
 from urllib.parse import urlsplit
 import requests
+import logging
+
+log = logging.getLogger(__name__)
 
 def resolve_host(host: str) -> bool:
     try:
@@ -25,7 +28,9 @@ def probe_url(url: str, timeout: int) -> Tuple[str, str]:
             return url, "dead"
         # Try HEAD; fallback GET
         r = requests.head(url, allow_redirects=True, timeout=timeout)
+        log.debug("HEAD %s -> %s", url, r.status_code)
         if r.status_code >= 500:
+            log.debug("HEAD %s -> network error", url)
             return url, "dead"
         return url, "live"
     except requests.RequestException:
@@ -36,6 +41,7 @@ def classify_domains(urls: List[str], timeout: int, treat_4xx_as_live: bool, max
     Returns {domain: 'live'|'dead'} based on the *best* observed status among its URLs.
     """
     # probe
+    log.info("Liveness: probing %d URLs (timeout=%ss, workers=%d)", len(urls), timeout, max_workers)
     results: Dict[str, str] = {}
     with cf.ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(probe_url, u, timeout) for u in urls]
@@ -57,4 +63,7 @@ def classify_domains(urls: List[str], timeout: int, treat_4xx_as_live: bool, max
         if prev == "live":
             continue
         domain_status[d] = st if st == "dead" else "live"
+
+    log.info("Liveness summary: live=%d dead=%d", sum(1 for s in domain_status.values() if s=="live"),
+                                               sum(1 for s in domain_status.values() if s=="dead"))
     return domain_status

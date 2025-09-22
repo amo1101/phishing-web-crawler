@@ -5,6 +5,9 @@ from datetime import datetime
 from .state import State
 from .heritrix import Heritrix
 
+import logging
+log = logging.getLogger(__name__)
+
 TEMPLATE = """
 <!doctype html>
 <html>
@@ -94,6 +97,7 @@ def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Fl
     def api_domains():
         if not _check_auth():
             return _auth_required()
+        log.debug("GET /api/domains")
         rows = st.conn.execute("""
             SELECT domain, last_live_status, last_seen, last_heritrix_launch, job_kind, wayback_timestamps
             FROM domains ORDER BY domain
@@ -119,12 +123,14 @@ def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Fl
                 "wb_jobs": wb_jobs,
                 "wb_status": wb_status,
             })
+        log.info("Returned status for %d domains", len(data))
         return jsonify(data)
 
     @app.route("/")
     def index():
         if not _check_auth():
             return _auth_required()
+        log.debug("GET /")
         # Reuse API data for rendering
         data = app.test_client().get("/api/domains").get_json()
         return render_template_string(TEMPLATE, rows=data, now=datetime.utcnow().isoformat(timespec="seconds")+"Z")
