@@ -21,7 +21,7 @@ def parse_csv_urls(csv_path: Path) -> List[str]:
     with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            for key in ("url", "other_urls"):
+            for key in ("url", "URL", "other_urls"):
                 if key in row and row[key]:
                     for u in row[key].split('|'):
                         urls.append(normalize_url(u))
@@ -59,8 +59,10 @@ def run_once(cfg: Config, st: State):
         )
         st.set_last_incremental_run(now)
 
+    print(f"csv_path: {csv_path}")
     # 2) Extract URLs & group by domain
     urls = parse_csv_urls(csv_path)
+    print(f"urls: {urls}")
     seen_at = now
     for u in urls:
         d = registrable_domain(u)
@@ -75,6 +77,8 @@ def run_once(cfg: Config, st: State):
     )
     for d, s in domain_status.items():
         st.set_domain_status(d, s)
+    
+    print(f"domain_status: {domain_status}")
 
     # 4) Ensure Pywb collection exists
     ensure_collection(cfg["pywb"]["collection"], cfg["pywb"]["wb_manager_bin"])
@@ -94,6 +98,8 @@ def run_once(cfg: Config, st: State):
         d = registrable_domain(u)
         seeds_by_domain.setdefault(d, []).append(u)
 
+    print(f"seeds_by_domain: {seeds_by_domain}")
+
     # Live: create or append seeds
     for domain, status in domain_status.items():
         if status != "live":
@@ -102,6 +108,7 @@ def run_once(cfg: Config, st: State):
         domain_seeds = sorted(set(seeds_by_domain.get(domain, [])))
         if not domain_seeds:
             continue
+        print(f"job_name: {job_name}, domain_seeds {domain_seeds}")
         if heri.job_exists(job_name):
             heri.append_seeds(job_name, domain_seeds)  # ActionDirectory
         else:

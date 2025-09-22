@@ -137,6 +137,7 @@ def fake_requests(monkeypatch):
             from urllib.parse import urlencode
             q = urlencode(kwargs["params"], doseq=True)
             key = f"{url}?{q}"
+            print(f"--->key: {key} <---")
             return registry_get.get(key, registry_get.get(url, FakeResp(404, "not found")))
         return registry_get.get(url, FakeResp(404, "not found"))
 

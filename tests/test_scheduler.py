@@ -26,11 +26,15 @@ def test_run_once_live_append_and_dead_wayback(monkeypatch, tmp_config, state, t
     class FakeHeri:
         def __init__(self, *a, **k): pass
         def job_exists(self, name): return False
-        def append_seeds(self, job_name, seeds): created["live"].append(("append", job_name, tuple(seeds)))
+        def append_seeds(self, job_name, seeds):
+            print(f"append_seeds: job name: {job_name}, seeds: {seeds}")
+            created["live"].append(("append", job_name, tuple(seeds)))
         def create_or_update_live_job(self, domain, seeds, cfg):
+            print(f"create_or_update_live_job: domain {domain}, seeds: {seeds}, cfg {cfg}")
             created["live"].append(("create", domain, tuple(sorted(set(seeds)))))
             return f"live-{domain.replace('.','-')}"
         def create_wayback_job_with_seeds(self, domain, ts, url_seeds, cfg):
+            print(f"create_wayback_job_with_seeds: domain {domain}, ts {ts}, url_seeds: {url_seeds}, cfg {cfg}")
             created["wb"].append((domain, ts, tuple(sorted(set(url_seeds)))))
             return f"wb-{domain.replace('.','-')}-{ts}"
     monkeypatch.setattr("crawler.scheduler.Heritrix", FakeHeri)
