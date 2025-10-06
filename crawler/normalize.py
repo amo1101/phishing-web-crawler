@@ -1,13 +1,23 @@
 from __future__ import annotations
 import tldextract
 from urllib.parse import urlsplit, urlunsplit
+import re
+
+_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.+-]*://')
 
 def normalize_url(u: str) -> str:
-    """Basic normalization: strip fragments, normalize scheme/host casing."""
-    parts = urlsplit(u.strip())
-    scheme = (parts.scheme or "https").lower() # default to https
+    """Normalize: strip fragments, default scheme to https, lowercase scheme/host."""
+    raw = (u or "").strip()
+    if "#" in raw:
+        raw = raw.split("#", 1)[0]
+
+    if not _SCHEME_RE.match(raw):
+        raw = "https://" + raw.lstrip("/")
+
+    parts = urlsplit(raw)
+    scheme = (parts.scheme or "https").lower()
     netloc = parts.netloc.lower()
-    path = parts.path or "/"
+    path   = parts.path or "/"
     return urlunsplit((scheme, netloc, path, parts.query, ""))
 
 def registrable_domain(u: str) -> str:

@@ -25,7 +25,7 @@ def main():
     t.start()
 
     # Run the scheduler loop (blocks)
-    run_loop(cfg, st, worker_thread=t)
+    run_loop(cfg, st)
 
 if __name__ == "__main__":
     main()

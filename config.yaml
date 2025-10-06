@@ -1,9 +1,9 @@
 # Global paths
-state_db: /Data/scratch/cw486/phishingwebarchive/state.db
-warc_root: /Data/scratch/cw486/phishingwebarchive/fma
+state_db: /Data/scratch/cw486/phishingwebarchive/run/state.db
+warc_root: /Data/scratch/cw486/phishingwebarchive/run/fma
 
 iosco:
-  csv_root: "/Data/scratch/cw486/phishingwebarchive/iosco"
+  csv_root: "/Data/scratch/cw486/phishingwebarchive/run/iosco"
   nca_id: 64
   subsection: "main"
   request_timeout_seconds: 60
@@ -23,7 +23,7 @@ queue:
 liveness:
   timeout_seconds: 10
   treat_http_4xx_as_live: true
-  max_parallel_probes: 30
+  max_parallel_probes: 5
 
 # Heritrix integration
 heritrix:
@@ -70,8 +70,8 @@ web:
     password: "admin"
 
 logging:
-  level: INFO                 # DEBUG | INFO | WARNING | ERROR
-  file: "logs\\app.log"
+  level: DEBUG                 # DEBUG | INFO | WARNING | ERROR
+  file: "/Data/scratch/cw486/phishingwebarchive/run/crawler.log"
   rotate:
     when: "midnight"          # Timed rotation; alternatives: "S","M","H","D","W0"-"W6"
     backupCount: 14           # keep last 14 files

@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict
 from datetime import datetime, timezone
+import threading
 import logging
 
 log = logging.getLogger(__name__)
@@ -56,14 +57,48 @@ class State:
     def __init__(self, db_path: str):
         self.db_path = db_path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(db_path, isolation_level=None)
-        self.conn.execute("PRAGMA foreign_keys = ON;")
-        self._init_db()
-
-    def _init_db(self):
-        cur = self.conn.cursor()
-        cur.executescript(SCHEMA)
+        self._local = threading.local()
+        # Ensure schema exists in the creating thread
+        conn = self._conn()
+        self._init_db(conn)
         log.info("SQLite state initialized at %s", self.db_path)
+
+    def _conn(self) -> sqlite3.Connection:
+        """Return a per-thread SQLite connection (create if missing)."""
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(
+                self.db_path,
+                isolation_level=None,        # autocommit mode
+                check_same_thread=False,     # allow use in this thread (distinct conn per thread)
+                detect_types=sqlite3.PARSE_DECLTYPES,
+            )
+            # Pragmas for concurrency/consistency
+            conn.execute("PRAGMA foreign_keys = ON;")
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+            self._local.conn = conn
+            # Optionally, ensure schema (idempotent)
+            self._init_db(conn)
+        return conn
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """Compatibility: expose the current thread's connection."""
+        return self._conn()
+
+    def close(self):
+        """Close the current thread's connection, if any."""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.close()
+            finally:
+                self._local.conn = None
+
+    def _init_db(self, conn: sqlite3.Connection):
+        cur = conn.cursor()
+        cur.executescript(SCHEMA)
 
     # --- meta helpers ---
     def get_meta(self, key: str) -> Optional[str]:
@@ -227,3 +262,4 @@ class State:
             "UPDATE jobs SET payload=?, updated_at=? WHERE id=?",
             (json.dumps(payload or {}), now, job_id)
         )
+

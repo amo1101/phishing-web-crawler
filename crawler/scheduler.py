@@ -28,7 +28,7 @@ def parse_csv_urls(csv_path: Path) -> List[str]:
                 if key in row and row[key]:
                     for u in row[key].split('|'):
                         urls.append(normalize_url(u))
-    return urls
+    return urls[:10]
 
 def run_once(cfg: Config, st: State):
     now = datetime.now(timezone.utc)
@@ -163,8 +163,8 @@ def run_loop(cfg: Config, st: State):
     while True:
         try:
             # Wait until next daily time
-            wait_s = _next_daily_time(cfg["schedule"]["daily_run_time"])
-            time.sleep(wait_s)
+            #wait_s = _next_daily_time(cfg["schedule"]["daily_run_time"])
+            #time.sleep(wait_s)
 
             # Daily ingestion -> enqueue jobs
             run_once(cfg, st)
@@ -173,7 +173,7 @@ def run_loop(cfg: Config, st: State):
             enqueue_cadence_relaunches(cfg, st)
 
             # Sleep a short period before recalculating
-            time.sleep(5)
+            time.sleep(3600)
 
         except Exception:
             # Log if you add logging; keep process alive for systemd
