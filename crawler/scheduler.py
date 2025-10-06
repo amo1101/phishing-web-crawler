@@ -83,7 +83,7 @@ def run_once(cfg: Config, st: State):
         st.set_domain_status(d, s)
 
     # 4) Ensure Pywb collection exists
-    ensure_collection(cfg["pywb"]["collection"], cfg["pywb"]["wb_manager_bin"])
+    #ensure_collection(cfg["pywb"]["collection"], cfg["pywb"]["wb_manager_bin"])
 
     # 5) Orchestrate per-domain work
     heri = Heritrix(
