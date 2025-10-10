@@ -44,9 +44,9 @@
   </bean>
 
   <!-- Limit to this timestamp & this domain (incl. subdomains); use non-id_ seeds to enable rewritten link traversal -->
-  <bean bean_id="acceptMatch" class="org.archive.modules.deciderules.MatchesListRegexDecideRule">
+  <bean id="acceptMatch" class="org.archive.modules.deciderules.MatchesListRegexDecideRule">
     <property name="decision" value="ACCEPT"/>
-    <property name="list">
+    <property name="RegexList">
 	  <list>
 	    <value>^https?://web\.archive\.org/web/${timestamp}[^/]*/https?://([^.]+\.)?${domain}/.*</value>
 	    <value>^https?://web\.archive\.org/web/${timestamp}[^/]*/http://([^.]+\.)?${domain}/.*</value>

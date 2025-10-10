@@ -1,75 +1,12 @@
 from __future__ import annotations
 import os
-from flask import Flask, jsonify, render_template_string, request, Response
+from flask import Flask, jsonify, render_template_string, request, Response, render_template
 from datetime import datetime
 from .state import State
 from .heritrix import Heritrix
 
 import logging
 log = logging.getLogger(__name__)
-
-TEMPLATE = """
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>FMA Crawl Status</title>
-  https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css
-</head>
-<body class="bg-light">
-<div class="container-fluid py-4">
-  <h1 class="mb-3">FMA Crawl Status</h1>
-  <p class="text-muted">Last updated: {{ now }}</p>
-  <table class="table table-sm table-striped table-hover align-middle">
-    <thead class="table-dark">
-      <tr>
-        <th>Domain</th>
-        <th>Liveness</th>
-        <th>Last Seen</th>
-        <th>Job Kind</th>
-        <th>Live Job</th>
-        <th>Live Status</th>
-        <th>Wayback Jobs</th>
-        <th>Wayback Status</th>
-        <th>Last Heritrix Launch</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr>
-        <td><code>{{ row.domain }}</code></td>
-        <td>
-          {% if row.last_live_status == 'live' %}
-            <span class="badge bg-success">live</span>
-          {% elif row.last_live_status == 'dead' %}
-            <span class="badge bg-secondary">dead</span>
-          {% else %}
-            <span class="badge bg-light text-dark">unknown</span>
-          {% endif %}
-        </td>
-        <td>{{ row.last_seen or '' }}</td>
-        <td>{{ row.job_kind or '' }}</td>
-        <td><code>{{ row.live_job or '' }}</code></td>
-        <td>{{ row.live_status or '' }}</td>
-        <td style="max-width: 260px;">
-          {% for j in row.wb_jobs %}
-            <div><code>{{ j }}</code></div>
-          {% endfor %}
-        </td>
-        <td>
-          {% for s in row.wb_status %}
-            <div>{{ s }}</div>
-          {% endfor %}
-        </td>
-        <td>{{ row.last_heritrix_launch or '' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-</body>
-</html>
-"""
 
 def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Flask:
     app = Flask(__name__)
@@ -99,9 +36,15 @@ def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Fl
             return _auth_required()
         log.debug("GET /api/domains")
         rows = st.conn.execute("""
-            SELECT domain, last_live_status, last_seen, last_heritrix_launch, job_kind, wayback_timestamps
+            SELECT domain,
+                last_live_status,
+                CAST(last_seen AS TEXT) AS last_seen,
+                CAST(last_heritrix_launch AS TEXT) AS last_heritrix_launch,
+                job_kind,
+                wayback_timestamps
             FROM domains ORDER BY domain
         """).fetchall()
+        log.debug(f"{len(rows)} domains fetched")
         data = []
         for (domain, last_live_status, last_seen, last_launch, job_kind, wb_stamps) in rows:
             live_job = f"live-{domain.replace('.', '-')}"
@@ -133,7 +76,7 @@ def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Fl
         log.debug("GET /")
         # Reuse API data for rendering
         data = app.test_client().get("/api/domains").get_json()
-        return render_template_string(TEMPLATE, rows=data, now=datetime.utcnow().isoformat(timespec="seconds")+"Z")
+        return render_template("index.html", rows=data, now=datetime.utcnow().isoformat(timespec="seconds")+"Z")
 
     return app
 

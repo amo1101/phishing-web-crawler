@@ -28,7 +28,7 @@ def parse_csv_urls(csv_path: Path) -> List[str]:
                 if key in row and row[key]:
                     for u in row[key].split('|'):
                         urls.append(normalize_url(u))
-    return urls[:10]
+    return urls[:30]
 
 def run_once(cfg: Config, st: State):
     now = datetime.now(timezone.utc)
@@ -64,6 +64,7 @@ def run_once(cfg: Config, st: State):
         st.set_last_incremental_run(now)
 
     # 2) Extract URLs & group by domain
+    log.info("CSV path %s", csv_path)
     urls = parse_csv_urls(csv_path)
     log.info("Parsed %d URLs from CSV %s", len(urls), csv_path)
 

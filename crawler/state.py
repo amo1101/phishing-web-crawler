@@ -145,15 +145,15 @@ class State:
         q = """
         SELECT domain FROM domains
         WHERE last_seen IS NOT NULL
-          AND (last_heritrix_launch IS NULL
-               OR julianday('now') - julianday(last_heritrix_launch) >= ?)
+          AND (last_heritrix_launch IS NOT NULL
+               AND julianday('now') - julianday(last_heritrix_launch) >= ?)
         """
         rows = self.conn.execute(q, (cadence_days,)).fetchall()
         return [r[0] for r in rows]
 
-    def mark_heritrix_launch(self, domain: str, when: Optional[datetime] = None):
+    def mark_heritrix_launch(self, domain: str, job_type: str, when: Optional[datetime] = None):
         when = when or datetime.utcnow()
-        self.conn.execute("UPDATE domains SET last_heritrix_launch=? WHERE domain=?", (when.isoformat(), domain))
+        self.conn.execute("UPDATE domains SET last_heritrix_launch=? job_kind=? WHERE domain=?", (when.isoformat(), job_type, domain))
 
     def record_wayback_timestamps(self, domain: str, stamps: List[str]):
         stamps_csv = ",".join(stamps)
@@ -262,4 +262,12 @@ class State:
             "UPDATE jobs SET payload=?, updated_at=? WHERE id=?",
             (json.dumps(payload or {}), now, job_id)
         )
+
+    def job_running(self, domain) -> bool:
+        rows = self.conn.execute(
+            "SELECT id FROM jobs WHERE domain=? and status='RUNNING' LIMIT 1",
+            (domain,)
+        ).fetchall()
+        return len(rows) > 0
+
 

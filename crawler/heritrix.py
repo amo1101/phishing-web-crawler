@@ -9,6 +9,18 @@ log = logging.getLogger(__name__)
 LIVE_TEMPLATE = "crawler/job_templates/crawler-beans-live.cxml.j2"
 WAYBACK_TEMPLATE = "crawler/job_templates/crawler-beans-wayback.cxml.j2"
 
+# Compile once: allow optional namespace, whitespace/newlines inside, and case-insensitive
+_STATE_RE = re.compile(
+    r"<(?:\w+:)?crawlControllerState>\s*([^<]+?)\s*</(?:\w+:)?crawlControllerState>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Optional fallback if you want to detect UNBUILT when state tag is absent
+_DESC_RE = re.compile(
+    r"<(?:\w+:)?statusDescription>\s*([^<]+?)\s*</(?:\w+:)?statusDescription>",
+    re.IGNORECASE | re.DOTALL,
+)
+
 def _surt_for_registrable_domain(domain: str) -> str:
     # example.co.nz -> http://(nz,co,example,)/
     parts = domain.strip(".").split(".")
@@ -31,14 +43,18 @@ class Heritrix:
         log.debug("POST %s -> %s", url, r.status_code)
         r.raise_for_status()
 
-    def add_job_dir(self, job_dir: Path) -> None:
+    def _add_job_dir(self, job_dir: Path) -> None:
         self._post(f"{self.base}/engine", {"action":"add", "addpath": str(job_dir)})
 
-    def build_job(self, job_name: str) -> None:
+    def _build_job(self, job_name: str) -> None:
         self._post(f"{self.base}/engine/job/{job_name}", {"action":"build"})
 
-    def launch_job(self, job_name: str) -> None:
-        self._post(f"{self.base}/engine/job/{job_name}", {"action":"launch"})
+    def _launch_job(self, job_name: str) -> None:
+        self._post(f"{self.base}/engine/job/{job_name}", {"action":"launch","checkpoint":"latest"})
+        log.info("Launched Heritrix job %s", job_name)
+
+    def _unpause_job(self, job_name: str) -> None:
+        self._post(f"{self.base}/engine/job/{job_name}", {"action":"unpause"})
         log.info("Launched Heritrix job %s", job_name)
 
     def job_exists(self, job_name: str) -> bool:
@@ -71,7 +87,10 @@ class Heritrix:
                 .replace("${max_toe_threads}", str(cfg["max_toe_threads"])))
         (job_dir / "crawler-beans.cxml").write_text(cxml, encoding="utf-8")
 
-        self.add_job_dir(job_dir); self.build_job(job_name); self.launch_job(job_name)
+        self._add_job_dir(job_dir)
+        self._build_job(job_name)
+        self._launch_job(job_name)
+        self._unpause_job(job_name)
         return job_name
 
     # --- WAYBACK job: per-(domain,timestamp) with URL-level seeds ---
@@ -101,7 +120,22 @@ class Heritrix:
                 .replace("${domain}", domain))
         (job_dir / "crawler-beans.cxml").write_text(cxml, encoding="utf-8")
 
-        self.add_job_dir(job_dir); self.build_job(job_name); self.launch_job(job_name)
+        self._add_job_dir(job_dir)
+        self._build_job(job_name)
+        self._launch_job(job_name)
+        self._unpause_job(job_name)
+        return job_name
+
+    def relaunch_job(self, domain: str) -> str:
+        job_name = f"live-{domain.replace('.', '-')}"
+        log.info("Relaunch live job %s", job_name)
+        if not self.job_exists(job_name):
+            log.info('Skip it, the job %s does not exist', job_name)
+            return ""
+
+        self._build_job(job_name)
+        self._launch_job(job_name)
+        self._unpause_job(job_name)
         return job_name
 
     def get_job_status(self, job_name: str) -> str:
@@ -110,11 +144,27 @@ class Heritrix:
         Returns: RUNNING | PAUSED | FINISHED | UNBUILT | UNKNOWN
         """
         try:
-            r = requests.get(f"{self.base}/engine/job/{job_name}",
-                             auth=self.auth, verify=self.tls_verify, timeout=10)
+            r = requests.get(
+                f"{self.base}/engine/job/{job_name}",
+                auth=self.auth,
+                verify=self.tls_verify,
+                timeout=60,
+                headers={"Accept": "application/xml"},  # ask for XML
+            )
             r.raise_for_status()
-            # Heritrix UI contains status token; we try to capture it
-            m = re.search(r"(?i)Status:\s*([A-Z]+)", r.text)
-            return m.group(1) if m else "UNKNOWN"
-        except Exception:
+
+            # Find all states; prefer the last one (usually inside <job>…</job>)
+            matches = _STATE_RE.findall(r.text)
+            if matches:
+                return matches[-1].strip().upper()
+
+            # Optional fallback: map "Unbuilt" in status description to UNBUILT
+            m_desc = _DESC_RE.search(r.text)
+            if m_desc and "UNBUILT" in m_desc.group(1).upper():
+                return "UNBUILT"
+
             return "UNKNOWN"
+        except Exception as e:
+            log.debug(f"An exception occurred {e}")
+            return "UNKNOWN"
+

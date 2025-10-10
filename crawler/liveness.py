@@ -23,8 +23,10 @@ def probe_url(url: str, timeout: int) -> Tuple[str, str]:
     try:
         parts = urlsplit(url)
         if not parts.netloc:
+            log.debug('no netloc')
             return url, "dead"
         if not resolve_host(parts.hostname):
+            log.debug('resolve host failed')
             return url, "dead"
         # Try HEAD; fallback GET
         r = requests.head(url, allow_redirects=True, timeout=timeout)

@@ -14,16 +14,16 @@ schedule:
   heritrix_job_interval_days: 7
 
 queue:
-  max_parallel_jobs: 3           # how many queue jobs can be RUNNING at once
-  reconcile_interval_seconds: 30 # how often the worker polls Heritrix to refresh job statuses
-  max_retries: 2                 # retry failed queue jobs (create/launch errors)
+  max_parallel_jobs: 5           # how many queue jobs can be RUNNING at once
+  reconcile_interval_seconds: 15 # how often the worker polls Heritrix to refresh job statuses
+  max_retries: 0                 # retry failed queue jobs (create/launch errors)
   retry_backoff_seconds: 60      # wait before retrying a failed job
 
 # Liveness
 liveness:
   timeout_seconds: 10
   treat_http_4xx_as_live: true
-  max_parallel_probes: 5
+  max_parallel_probes: 30
 
 # Heritrix integration
 heritrix:

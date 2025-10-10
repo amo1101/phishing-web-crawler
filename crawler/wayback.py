@@ -13,10 +13,11 @@ def cdx_latest_snapshots_for_url(url: str, n: int, cdx_endpoint: str, base_param
         log.debug("CDX response: status=%s", resp.status_code)
         resp.raise_for_status()
         rows = resp.json()
+        log.debug(f'CDX response: {resp.json()}')
     except Exception:
         log.exception("CDX query failed for %s", url)
         raise
-    stamps = sorted({row[0] for row in rows if isinstance(row, list) and len(row) >= 4}, reverse=True)[:n]
+    stamps = sorted({row[0] for row in rows[1:] if isinstance(row, list) and len(row) >= 4}, reverse=True)[:n]
     log.info("CDX latest timestamps for %s: %s", url, stamps)
     time.sleep(max(0, 1.0 / rps))
     return stamps

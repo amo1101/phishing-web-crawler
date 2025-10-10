@@ -44,9 +44,8 @@ class JobQueueWorker:
 
         elif jtype == LIVE_RELAUNCH:
             log.info("LIVE_RELAUNCH domain=%s", domain)
-            jn = f"live-{domain.replace('.', '-')}"
-            self.heri.build_job(jn); self.heri.launch_job(jn)
-            payload["job_names"] = [jn]; self.state.update_job_payload(job["id"], payload)
+            name = self.heri.relaunch_job(domain)
+            payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
 
         elif jtype == WAYBACK_CREATE:
             ts = payload["timestamp"]; url_seeds = payload["url_seeds"]
@@ -64,6 +63,9 @@ class JobQueueWorker:
 
         else:
             self.state.mark_skipped(job["id"], f"unknown job type {jtype}")
+            return
+
+        self.state.mark_heritrix_launch(domain, jtype)
 
     def _reconcile(self):
         """Poll Heritrix for RUNNING jobs and mark SUCCEEDED when all underlying job_names are no longer RUNNING."""
@@ -73,12 +75,14 @@ class JobQueueWorker:
             job_names = payload.get("job_names") or []
             if not job_names:
                 # No way to reconcile; mark as SUCCEEDED after a grace period?
+                log.debug("no job name, mark as succeed for job %s", job["id"])
                 self.state.mark_succeeded(job["id"])
                 continue
 
             statuses = [self.heri.get_job_status(name) for name in job_names]
             # Consider SUCCEEDED when none are RUNNING (Heritrix often reports FINISHED/PAUSED/ENDED)
             if all(s not in ("RUNNING", "UNBUILT") for s in statuses):
+                log.debug("mark as succeed for job %s", job["id"])
                 self.state.mark_succeeded(job["id"])
 
     def run_forever(self):
@@ -90,25 +94,27 @@ class JobQueueWorker:
         last_reconcile = 0
         log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds", max_parallel, reconcile_every)
         while not self._stop.is_set():
-            now = time.time()
-            if now - last_reconcile >= reconcile_every:
-                try:
-                    self._reconcile()
-                    running = self.state.count_running_jobs()
-                    log.debug("Reconciled queue; currently running=%d", running)
-                except Exception:
-                    log.exception("Reconcile failed")
-                last_reconcile = now
+            time.sleep(reconcile_every)
+            try:
+                self._reconcile()
+            except Exception:
+                log.exception("Reconcile failed")
 
-            capacity = max_parallel - self.state.count_running_jobs()
+            running = self.state.count_running_jobs()
+            capacity = max_parallel - running
+            log.debug("Reconciled queue; currently running=%d, capacity=%d",
+                      running, capacity)
             if capacity <= 0:
-                time.sleep(0.5); continue
+                continue
 
             jobs = self.state.fetch_next_pending(limit=capacity)
             if not jobs:
-                time.sleep(0.5); continue
+                continue
 
             for job in jobs:
+                if self.state.job_running(job["domain"]):
+                    log.info("A job for this domain is running, skip this job")
+                    continue
                 self.state.mark_running(job["id"])
                 log.info("Dequeued -> RUNNING id=%s type=%s domain=%s", job["id"], job["type"], job["domain"])
                 try:
@@ -117,4 +123,6 @@ class JobQueueWorker:
                 except Exception as ex:
                     log.exception("Job %s failed in handler", job["id"])
                     self.state.mark_failed(job["id"], str(ex), max_retries=max_retries)
-                    time.sleep(backoff)
+                    if max_retries > 0:
+                        time.sleep(backoff)
+
