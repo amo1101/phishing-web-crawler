@@ -1,11 +1,12 @@
 from __future__ import annotations
 import os
+import logging
 from flask import Flask, jsonify, render_template_string, request, Response, render_template
 from datetime import datetime
 from .state import State
 from .heritrix import Heritrix
 
-import logging
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
 def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Flask:

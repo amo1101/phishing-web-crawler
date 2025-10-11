@@ -167,4 +167,3 @@ class Heritrix:
         except Exception as e:
             log.debug(f"An exception occurred {e}")
             return "UNKNOWN"
-
