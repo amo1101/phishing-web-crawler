@@ -125,4 +125,3 @@ class JobQueueWorker:
                     self.state.mark_failed(job["id"], str(ex), max_retries=max_retries)
                     if max_retries > 0:
                         time.sleep(backoff)
-

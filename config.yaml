@@ -47,17 +47,9 @@ pywb:
   wb_manager_bin: "wb-manager"        # must be in PATH for the service user
 
 # Dead-site acquisition
-wayback:
-  snapshots_per_domain: 1
-  rps: 0.5                            # polite limit to web.archive.org
-  cdx_endpoint: "https://web.archive.org/cdx/search/cdx"
-  # CDX options reflect Wayback CDX Server API
-  cdx_params:
-    matchType: "exact"
-    output: "json"
-    fl: "timestamp,original,statuscode,digest"
-    filter: "statuscode:200"
-    collapse: "digest"
+wb_downloader:
+  output_dir: "/Data/scratch/cw486/phishingwebarchive/run/wb"
+  concurrency: 3          # how many files to download in parallel for Wayback downloads
 
 # Dashboard
 web:

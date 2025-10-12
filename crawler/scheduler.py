@@ -118,31 +118,14 @@ def run_once(cfg: Config, st: State):
             st.enqueue_job_unique(LIVE_CREATE, domain, {"seeds": domain_seeds}, priority=50)
             log.info("Enqueued LIVE_CREATE for %s with %d seeds", domain, len(domain_seeds))
 
-    # Dead: per-URL CDX; group seeds per (domain, timestamp)
-    log.info("Discovering Wayback timestamps for dead URLs")
-    seeds_by_d_ts: Dict[tuple[str,str], set[str]] = {}
+    # Dead: create wayback download jobs
+    log.info("Creating Wayback downloading jobs for dead URLs")
     for u in urls:
         d = registrable_domain(u)
         if domain_status.get(d) != "dead":
             continue
-        stamps = cdx_latest_snapshots_for_url(
-            url=u,
-            n=cfg["wayback"]["snapshots_per_domain"],
-            cdx_endpoint=cfg["wayback"]["cdx_endpoint"],
-            base_params=cfg["wayback"]["cdx_params"],
-            rps=cfg["wayback"]["rps"]
-        )
-        for ts in stamps:
-            seeds_by_d_ts.setdefault((d, ts), set()).add(u)
-
-    log.info("Wayback groups prepared: %d (domain,timestamp) pairs", len(seeds_by_d_ts))
-    for (d, ts), urlset in seeds_by_d_ts.items():
-        job_name = f"wb-{d.replace('.', '-')}-{ts}"
-        if heri.job_exists(job_name):
-            log.info("Wayback job already exists: %s (skipping)", job_name)
-            continue
-        st.enqueue_job_unique(WAYBACK_CREATE, d, {"timestamp": ts, "url_seeds": sorted(urlset)}, priority=60)
-        log.info("Enqueued WAYBACK_CREATE %s ts=%s seeds=%d", d, ts, len(urlset))
+        st.enqueue_job_unique(WAYBACK_CREATE, d, {}, priority=60)
+        log.info("Enqueued WAYBACK_CREATE for domain: %s", d)
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
