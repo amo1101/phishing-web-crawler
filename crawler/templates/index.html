@@ -42,9 +42,9 @@
           <th>Job Kind</th>
           <th>Live Job</th>
           <th>Live Status</th>
-          <th>Wayback Jobs</th>
+          <th>Wayback Job</th>
           <th>Wayback Status</th>
-          <th>Last Heritrix Launch</th>
+          <th>Last Launch</th>
         </tr>
       </thead>
       <tbody>
@@ -96,8 +96,8 @@
           </td>
 
           <td style="max-width: 260px;">
-            {% for j in row.wb_jobs %}
-              <div><code data-bs-toggle="tooltip" title="Wayback replay job">{{ j }}</code></div>
+            {% for j in row.wb_job %}
+              <div><code data-bs-toggle="tooltip" title="Wayback download job">{{ j }}</code></div>
             {% endfor %}
           </td>
 
@@ -107,7 +107,7 @@
             {% endfor %}
           </td>
 
-          <td>{{ row.last_heritrix_launch or '' }}</td>
+          <td>{{ row.last_launch or '' }}</td>
         </tr>
         {% endfor %}
       </tbody>

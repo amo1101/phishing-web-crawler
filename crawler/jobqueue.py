@@ -6,6 +6,7 @@ from typing import Dict, List
 from datetime import datetime
 from .state import State
 from .heritrix import Heritrix
+from .wb_downloader import WBDownloader
 import logging, time
 
 log = logging.getLogger(__name__)
@@ -26,6 +27,10 @@ class JobQueueWorker:
             jobs_dir=cfg["heritrix"]["jobs_dir"],
             tls_verify=cfg["heritrix"]["tls_verify"]
         )
+        self.wb_downloader = WBDownloader(
+            output_dir=cfg["wayback"]["output_dir"],
+            concurrency=int(cfg["wayback"]["concurrency"])
+        )
         self._stop = threading.Event()
 
     def stop(self):
@@ -40,32 +45,34 @@ class JobQueueWorker:
         if jtype == LIVE_CREATE:
             log.info("LIVE_CREATE domain=%s", domain)
             name = self.heri.create_or_update_live_job(domain, payload.get("seeds", []), self.cfg["heritrix"])
-            payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
+            payload["job_names"] = [name]
+            self.state.update_job_payload(job["id"], payload)
 
         elif jtype == LIVE_RELAUNCH:
             log.info("LIVE_RELAUNCH domain=%s", domain)
             name = self.heri.relaunch_job(domain)
-            payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
+            payload["job_names"] = [name]
+            self.state.update_job_payload(job["id"], payload)
 
         elif jtype == WAYBACK_CREATE:
-            ts = payload["timestamp"]; url_seeds = payload["url_seeds"]
-            log.info("WAYBACK_CREATE domain=%s ts=%s seeds=%d", domain, ts, len(url_seeds))
-            name = self.heri.create_wayback_job_with_seeds(domain, ts, url_seeds, self.cfg["heritrix"])
-            payload["job_names"] = [name]; self.state.update_job_payload(job["id"], payload)
-            cur = self.state.conn.execute(
-                "SELECT wayback_timestamps FROM domains WHERE domain=?", (domain,)
-            ).fetchone()
-            existing = set()
-            if cur and cur[0]:
-                existing = set([s for s in cur[0].split(",") if s])
-            existing.add(ts)
-            self.state.record_wayback_timestamps(domain, sorted(existing))
+            log.info("WAYBACK_CREATE domain=%s", domain)
+            name = self.wb_downloader.create_wayback_job(domain)
+            payload["job_names"] = [name]
+            self.state.update_job_payload(job["id"], payload)
 
         else:
             self.state.mark_skipped(job["id"], f"unknown job type {jtype}")
             return
 
-        self.state.mark_heritrix_launch(domain, jtype)
+        self.state.mark_launch(domain, jtype)
+
+    def _get_job_status(self, job_type, job_name) -> str:
+        if job_type in (LIVE_CREATE, LIVE_RELAUNCH):
+            return self.heri.get_job_status(job_name)
+        elif job_type == WAYBACK_CREATE:
+            return self.wb_downloader.get_job_status(job_name)
+        else:
+            return "UNKNOWN"
 
     def _reconcile(self):
         """Poll Heritrix for RUNNING jobs and mark SUCCEEDED when all underlying job_names are no longer RUNNING."""
@@ -73,13 +80,14 @@ class JobQueueWorker:
         for job in running:
             payload = job.get("payload") or {}
             job_names = payload.get("job_names") or []
+            jtype = job.get("type")
             if not job_names:
                 # No way to reconcile; mark as SUCCEEDED after a grace period?
                 log.debug("no job name, mark as succeed for job %s", job["id"])
                 self.state.mark_succeeded(job["id"])
                 continue
 
-            statuses = [self.heri.get_job_status(name) for name in job_names]
+            statuses = [self._get_job_status(jtype, name) for name in job_names]
             # Consider SUCCEEDED when none are RUNNING (Heritrix often reports FINISHED/PAUSED/ENDED)
             if all(s not in ("RUNNING", "UNBUILT") for s in statuses):
                 log.debug("mark as succeed for job %s", job["id"])
@@ -91,7 +99,6 @@ class JobQueueWorker:
         max_retries = int(self.cfg["queue"]["max_retries"])
         backoff = int(self.cfg["queue"]["retry_backoff_seconds"])
 
-        last_reconcile = 0
         log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds", max_parallel, reconcile_every)
         while not self._stop.is_set():
             time.sleep(reconcile_every)
@@ -125,3 +132,5 @@ class JobQueueWorker:
                     self.state.mark_failed(job["id"], str(ex), max_retries=max_retries)
                     if max_retries > 0:
                         time.sleep(backoff)
+        self.wb_downloader.destroy()
+        log.info("JobQueue worker stopped")

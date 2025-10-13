@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS domains (
   domain TEXT PRIMARY KEY,
   last_live_status TEXT,
   last_seen TIMESTAMP,
-  last_heritrix_launch TIMESTAMP,
+  last_launch TIMESTAMP,
   job_kind TEXT,
   wayback_timestamps TEXT
 );
@@ -145,15 +145,16 @@ class State:
         q = """
         SELECT domain FROM domains
         WHERE last_seen IS NOT NULL
-          AND (last_heritrix_launch IS NOT NULL
-               AND julianday('now') - julianday(last_heritrix_launch) >= ?)
+          AND job_kind IN ('LIVE_CREATE', 'LIVE_RELAUNCH')
+          AND (last_launch IS NOT NULL
+               AND julianday('now') - julianday(last_launch) >= ?)
         """
         rows = self.conn.execute(q, (cadence_days,)).fetchall()
         return [r[0] for r in rows]
 
-    def mark_heritrix_launch(self, domain: str, job_type: str, when: Optional[datetime] = None):
+    def mark_launch(self, domain: str, job_type: str, when: Optional[datetime] = None):
         when = when or datetime.utcnow()
-        self.conn.execute("UPDATE domains SET last_heritrix_launch=? job_kind=? WHERE domain=?", (when.isoformat(), job_type, domain))
+        self.conn.execute("UPDATE domains SET last_launch=? job_kind=? WHERE domain=?", (when.isoformat(), job_type, domain))
 
     def record_wayback_timestamps(self, domain: str, stamps: List[str]):
         stamps_csv = ",".join(stamps)
@@ -269,5 +270,17 @@ class State:
             (domain,)
         ).fetchall()
         return len(rows) > 0
-
-
+    
+    def wayback_job_finished(self, domain) -> bool:
+        rows = self.conn.execute(
+            "SELECT id FROM jobs WHERE domain=? and type='WAYBACK_CREATE' and status='SUCCEEDED' LIMIT 1",
+            (domain,)
+        ).fetchall()
+        return len(rows) > 0
+    
+    def wayback_latest_job_status(self, domain) -> str:
+        r = self.conn.execute(
+            "SELECT payload, status FROM jobs WHERE domain=? and type='WAYBACK_CREATE' ORDER BY created_at DESC LIMIT 1",
+            (domain,)
+        ).fetchone()
+        return {"payload": json.loads(r[0] or "{}"), "status": r[1]} if r else None

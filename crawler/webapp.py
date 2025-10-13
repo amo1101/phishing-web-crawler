@@ -40,7 +40,7 @@ def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Fl
             SELECT domain,
                 last_live_status,
                 CAST(last_seen AS TEXT) AS last_seen,
-                CAST(last_heritrix_launch AS TEXT) AS last_heritrix_launch,
+                CAST(last_launch AS TEXT) AS last_launch,
                 job_kind,
                 wayback_timestamps
             FROM domains ORDER BY domain
@@ -49,23 +49,22 @@ def create_app(db_path: str, heritrix_cfg: dict, auth: dict | None = None) -> Fl
         data = []
         for (domain, last_live_status, last_seen, last_launch, job_kind, wb_stamps) in rows:
             live_job = f"live-{domain.replace('.', '-')}"
-            live_status = heri.get_job_status(live_job) if heri.job_exists(live_job) else "NONE"
-            wb_jobs, wb_status = [], []
-            if wb_stamps:
-                for ts in wb_stamps.split(","):
-                    j = f"wb-{domain.replace('.', '-')}-{ts}"
-                    wb_jobs.append(j)
-                    wb_status.append(heri.get_job_status(j) if heri.job_exists(j) else "NONE")
+            wb_job = None
+            live_status = None
+            if job_kind in ("LIVE_RELAUNCH", "WAYBACK_CREATE"):
+                live_status = heri.get_job_status(live_job) if heri.job_exists(live_job) else "NONE"
+            else:
+                wb_job = st.wayback_latest_job_status(domain)
             data.append({
                 "domain": domain,
                 "last_live_status": last_live_status,
                 "last_seen": last_seen,
-                "last_heritrix_launch": last_launch,
+                "last_launch": last_launch,
                 "job_kind": job_kind,
                 "live_job": live_job if heri.job_exists(live_job) else None,
                 "live_status": live_status,
-                "wb_jobs": wb_jobs,
-                "wb_status": wb_status,
+                "wb_job": wb_job['payload']['job_names'][0] if wb_job else None,
+                "wb_status": wb_job['status'] if wb_job else None
             })
         log.info("Returned status for %d domains", len(data))
         return jsonify(data)

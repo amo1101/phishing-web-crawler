@@ -124,6 +124,9 @@ def run_once(cfg: Config, st: State):
         d = registrable_domain(u)
         if domain_status.get(d) != "dead":
             continue
+        if st.wayback_job_finished(d):
+            log.info("Skipping domain %s as wayback job already finished", d)
+            continue
         st.enqueue_job_unique(WAYBACK_CREATE, d, {}, priority=60)
         log.info("Enqueued WAYBACK_CREATE for domain: %s", d)
 
