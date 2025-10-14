@@ -270,14 +270,14 @@ class State:
             (domain,)
         ).fetchall()
         return len(rows) > 0
-    
+
     def wayback_job_finished(self, domain) -> bool:
         rows = self.conn.execute(
             "SELECT id FROM jobs WHERE domain=? and type='WAYBACK_CREATE' and status='SUCCEEDED' LIMIT 1",
             (domain,)
         ).fetchall()
         return len(rows) > 0
-    
+
     def wayback_latest_job_status(self, domain) -> str:
         r = self.conn.execute(
             "SELECT payload, status FROM jobs WHERE domain=? and type='WAYBACK_CREATE' ORDER BY created_at DESC LIMIT 1",

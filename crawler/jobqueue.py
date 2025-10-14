@@ -28,8 +28,9 @@ class JobQueueWorker:
             tls_verify=cfg["heritrix"]["tls_verify"]
         )
         self.wb_downloader = WBDownloader(
-            output_dir=cfg["wayback"]["output_dir"],
-            concurrency=int(cfg["wayback"]["concurrency"])
+            downloader=cfg["wb_downloader"]["downloader"],
+            output_dir=cfg["wb_downloader"]["output_dir"],
+            concurrency=int(cfg["wb_downloader"]["concurrency"])
         )
         self._stop = threading.Event()
 

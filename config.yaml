@@ -48,6 +48,7 @@ pywb:
 
 # Dead-site acquisition
 wb_downloader:
+  downloader: "/Data/scratch/cw486/phishingwebarchive/run/wb"
   output_dir: "/Data/scratch/cw486/phishingwebarchive/run/wb"
   concurrency: 3          # how many files to download in parallel for Wayback downloads
 

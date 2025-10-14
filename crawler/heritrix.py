@@ -7,7 +7,6 @@ import logging, requests
 log = logging.getLogger(__name__)
 
 LIVE_TEMPLATE = "crawler/job_templates/crawler-beans-live.cxml.j2"
-WAYBACK_TEMPLATE = "crawler/job_templates/crawler-beans-wayback.cxml.j2"
 
 # Compile once: allow optional namespace, whitespace/newlines inside, and case-insensitive
 _STATE_RE = re.compile(
@@ -85,39 +84,6 @@ class Heritrix:
                 .replace("${max_documents}", str(cfg["limits"]["max_documents"]))
                 .replace("${max_bytes}", str(cfg["limits"]["max_bytes"]))
                 .replace("${max_toe_threads}", str(cfg["max_toe_threads"])))
-        (job_dir / "crawler-beans.cxml").write_text(cxml, encoding="utf-8")
-
-        self._add_job_dir(job_dir)
-        self._build_job(job_name)
-        self._launch_job(job_name)
-        self._unpause_job(job_name)
-        return job_name
-
-    # --- WAYBACK job: per-(domain,timestamp) with URL-level seeds ---
-    def create_wayback_job_with_seeds(self, domain: str, ts: str, url_seeds: List[str], cfg: Dict) -> str:
-        job_name = f"wb-{domain.replace('.', '-')}-{ts}"
-        job_dir = self.jobs_dir / job_name
-        (job_dir / "action").mkdir(parents=True, exist_ok=True)
-
-        # non-id_ replay seeds for traversal
-        replay_seeds = []
-        for u in sorted(set(url_seeds)):
-            if u.startswith("http://") or u.startswith("https://"):
-                replay_seeds.append(f"https://web.archive.org/web/{ts}/{u}")
-            elif u.startswith("https://web.archive.org/web/"):
-                replay_seeds.append(u)
-        (job_dir / "seeds.txt").write_text("\n".join(replay_seeds) + "\n", encoding="utf-8")
-        log.info("Prepared wayback job %s ts=%s seeds=%d dir=%s", job_name, ts, len(replay_seeds), job_dir)
-
-        cxml = (Path(WAYBACK_TEMPLATE).read_text(encoding="utf-8")
-                .replace("${job_name}", job_name)
-                .replace("${robots_policy}", cfg["robots_policy"])
-                .replace("${max_time_seconds}", str(cfg["limits"]["max_time_seconds"]))
-                .replace("${max_documents}", str(cfg["limits"]["max_documents"]))
-                .replace("${max_bytes}", str(cfg["limits"]["max_bytes"]))
-                .replace("${max_toe_threads}", str(cfg["max_toe_threads"]))
-                .replace("${timestamp}", ts)
-                .replace("${domain}", domain))
         (job_dir / "crawler-beans.cxml").write_text(cxml, encoding="utf-8")
 
         self._add_job_dir(job_dir)
