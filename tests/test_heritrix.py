@@ -1,6 +1,6 @@
 # tests/test_heritrix.py
 from pathlib import Path
-from crawler.heritrix import Heritrix, _surt_for_registrable_domain
+from crawler.btrix_cli import Heritrix, _surt_for_registrable_domain
 import re
 
 

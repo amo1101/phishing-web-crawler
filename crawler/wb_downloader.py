@@ -64,26 +64,26 @@ class WBDownloader:
             self._finished_jobs = {r['job']:r['status'] for r in job_st}
         return job_name in self._finished_jobs
 
-    def create_wayback_job(self, domain) -> str:
+    def create_job(self, url) -> str:
         """Create download job for domain, the job runs in a separate process.
         Returns the job name.
         """
-        job_name = f"wb-{domain.replace('.', '-')}"
+        job_name = f"wb-{url.replace('.', '-')}"
         if self.job_finished(job_name):
             return job_name
         job_dir = self.output_dir / job_name
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = [self.downloader, domain, str(job_dir), str(self.concurrency)]
+        cmd = [self.downloader, url, str(job_dir), str(self.concurrency)]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
         self._jobs[job_name] = proc
-        log.info("Started wayback download job %s for domain %s", job_name, domain)
+        log.info("Started wayback download job %s for url %s", job_name, url)
         return job_name
 
     def get_job_status(self, job_name: str) -> str:
         """
         check job status.
-        Returns: RUNNING | PAUSED | FINISHED | UNBUILT | UNKNOWN
+        Returns: RUNNING | FINISHED | FAILED
         """
         if self.job_finished(job_name):
             return "FINISHED"

@@ -38,9 +38,9 @@ def probe_url(url: str, timeout: int) -> Tuple[str, str]:
     except requests.RequestException:
         return url, "dead"
 
-def classify_domains(urls: List[str], timeout: int, treat_4xx_as_live: bool, max_workers: int = 30) -> Dict[str, str]:
+def classify_urls(urls: List[str], timeout: int, treat_4xx_as_live: bool, max_workers: int = 30) -> Dict[str, str]:
     """
-    Returns {domain: 'live'|'dead'} based on the *best* observed status among its URLs.
+    Returns {url: 'live'|'dead'} based on the *best* observed status among its URLs.
     """
     # probe
     log.info("Liveness: probing %d URLs (timeout=%ss, workers=%d)", len(urls), timeout, max_workers)
@@ -56,16 +56,6 @@ def classify_domains(urls: List[str], timeout: int, treat_4xx_as_live: bool, max
         # requests.head already followed redirects and we only labeled 5xx/network as dead.
         pass
 
-    # reduce to domain-level (live if any URL is live)
-    from .normalize import registrable_domain
-    domain_status: Dict[str, str] = {}
-    for u, st in results.items():
-        d = registrable_domain(u)
-        prev = domain_status.get(d)
-        if prev == "live":
-            continue
-        domain_status[d] = st if st == "dead" else "live"
-
-    log.info("Liveness summary: live=%d dead=%d", sum(1 for s in domain_status.values() if s=="live"),
-                                               sum(1 for s in domain_status.values() if s=="dead"))
-    return domain_status
+    log.info("Liveness summary: live=%d dead=%d", sum(1 for s in results.values() if s=="live"),
+                                               sum(1 for s in results.values() if s=="dead"))
+    return results

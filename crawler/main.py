@@ -15,7 +15,7 @@ def main():
     cfg = Config.load(args.config)
     setup_logging(cfg.data)
     log = logging.getLogger(__name__)
-    log.info("Starting FMA crawler with config: %s", args.config)
+    log.info("Starting Phishing web crawler with config: %s", args.config)
 
     st = State(cfg["state_db"])
 
@@ -26,6 +26,7 @@ def main():
 
     # Run the scheduler loop (blocks)
     run_loop(cfg, st)
+    worker.stop()
 
 if __name__ == "__main__":
     main()

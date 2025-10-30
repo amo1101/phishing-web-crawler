@@ -9,11 +9,8 @@ from .config import Config
 from .state import State
 from .normalize import normalize_url, registrable_domain
 from .iosco import fetch_iosco_csv
-from .liveness import classify_domains
-from .heritrix import Heritrix
-from .wayback import cdx_latest_snapshots_for_url
-from .pywb_mgr import ensure_collection
-from .jobqueue import LIVE_CREATE, WAYBACK_CREATE, LIVE_RELAUNCH
+from .liveness import classify_urls
+from .jobqueue import LIVE_CRAWL, WAYBACK_DOWNLOAD
 
 import logging
 log = logging.getLogger(__name__)
@@ -40,11 +37,11 @@ def run_once(cfg: Config, st: State):
     csv_root = Path(cfg["iosco"]["csv_root"])
 
     if last_full is None:
-        # First run: full export
+        # First full run from base_date
         csv_path = fetch_iosco_csv(
             csv_root=csv_root,
-            start_date=None,
-            end_date=None,
+            start_date=datetime.strptime(cfg["schedule"]["base_date"], '%Y-%m-%d').date(),
+            end_date=now.date(),
             nca_id=int(cfg["iosco"]["nca_id"]),
             subsection=cfg["iosco"]["subsection"],
             timeout=int(cfg["iosco"]["request_timeout_seconds"])
@@ -63,72 +60,30 @@ def run_once(cfg: Config, st: State):
         )
         st.set_last_incremental_run(now)
 
-    # 2) Extract URLs & group by domain
+    # 2) Extract URLs and filter existing urls
     log.info("CSV path %s", csv_path)
-    urls = parse_csv_urls(csv_path)
+    urls = set(parse_csv_urls(csv_path)) - set(st.fetch_all_urls())
     log.info("Parsed %d URLs from CSV %s", len(urls), csv_path)
 
-    seen_at = now
-    for u in urls:
-        d = registrable_domain(u)
-        st.upsert_url(u, d, seen_at)
-
-    # 3) Liveness by domain
-    domain_status = classify_domains(
-        urls=list(set(urls)),
+    # 3) URL liveness check
+    url_status = classify_urls(
+        urls=list(urls),
         timeout=cfg["liveness"]["timeout_seconds"],
         treat_4xx_as_live=cfg["liveness"]["treat_http_4xx_as_live"],
         max_workers=cfg["liveness"]["max_parallel_probes"],
     )
-    for d, s in domain_status.items():
-        st.set_domain_status(d, s)
 
-    # 4) Ensure Pywb collection exists
-    #ensure_collection(cfg["pywb"]["collection"], cfg["pywb"]["wb_manager_bin"])
+    # 4) create crawling job or wayback download job
+    for url, status in url_status.items():
+        job_type = LIVE_CRAWL
+        job_desc = 'Live'
+        job_priority = 100
+        if status == "dead":
+            job_type = WAYBACK_DOWNLOAD
+            job_priority = 50
 
-    # 5) Orchestrate per-domain work
-    heri = Heritrix(
-        base_url=cfg["heritrix"]["base_url"],
-        username=cfg["heritrix"]["username"],
-        password=cfg["heritrix"]["password"],
-        jobs_dir=cfg["heritrix"]["jobs_dir"],
-        tls_verify=cfg["heritrix"]["tls_verify"]
-    )
-
-    # seeds_by_domain from provided URLs
-    seeds_by_domain: Dict[str, List[str]] = {}
-    for u in urls:
-        d = registrable_domain(u)
-        seeds_by_domain.setdefault(d, []).append(u)
-
-    print(f"seeds_by_domain: {seeds_by_domain}")
-
-    # Live: create or append seeds
-    for domain, status in domain_status.items():
-        if status != "live":
-            continue
-        job_name = f"live-{domain.replace('.', '-')}"
-        domain_seeds = sorted(set(seeds_by_domain.get(domain, [])))
-        if not domain_seeds:
-            continue
-        if heri.job_exists(job_name):
-            log.info("Appending %d seeds to existing live job %s", len(domain_seeds), job_name)
-            heri.append_seeds(job_name, domain_seeds)  # ActionDirectory
-        else:
-            st.enqueue_job_unique(LIVE_CREATE, domain, {"seeds": domain_seeds}, priority=50)
-            log.info("Enqueued LIVE_CREATE for %s with %d seeds", domain, len(domain_seeds))
-
-    # Dead: create wayback download jobs
-    log.info("Creating Wayback downloading jobs for dead URLs")
-    for u in urls:
-        d = registrable_domain(u)
-        if domain_status.get(d) != "dead":
-            continue
-        if st.wayback_job_finished(d):
-            log.info("Skipping domain %s as wayback job already finished", d)
-            continue
-        st.enqueue_job_unique(WAYBACK_CREATE, d, {}, priority=60)
-        log.info("Enqueued WAYBACK_CREATE for domain: %s", d)
+        st.enqueue_job_unique(job_type, url, job_priority)
+        log.info("Enqueued %s job for %s", job_desc, url)
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
@@ -139,29 +94,18 @@ def _next_daily_time(local_hhmm: str) -> float:
         target += timedelta(days=1)
     return (target - now).total_seconds()
 
-def enqueue_cadence_relaunches(cfg: Config, st: State):
-    # Only relaunch live domains according to cadence; skip wayback
-    due_domains = st.get_domains_due_for_heritrix(cfg["schedule"]["heritrix_job_interval_days"])
-    from .jobqueue import LIVE_RELAUNCH
-    for d in due_domains:
-        st.enqueue_job_unique(LIVE_RELAUNCH, d, {}, priority=70)
-
 def run_loop(cfg: Config, st: State):
     while True:
         try:
             # Wait until next daily time
-            #wait_s = _next_daily_time(cfg["schedule"]["daily_run_time"])
-            #time.sleep(wait_s)
+            wait_s = _next_daily_time(cfg["schedule"]["daily_run_time"])
+            time.sleep(wait_s)
 
             # Daily ingestion -> enqueue jobs
             run_once(cfg, st)
-
-            # Enqueue relaunches for due live domains
-            enqueue_cadence_relaunches(cfg, st)
 
             # Sleep a short period before recalculating
             time.sleep(3600)
 
         except Exception:
-            # Log if you add logging; keep process alive for systemd
             time.sleep(5)

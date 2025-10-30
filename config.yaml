@@ -1,6 +1,5 @@
 # Global paths
 state_db: /Data/scratch/cw486/phishingwebarchive/run/state.db
-warc_root: /Data/scratch/cw486/phishingwebarchive/run/fma
 
 iosco:
   csv_root: "/Data/scratch/cw486/phishingwebarchive/run/iosco"
@@ -10,14 +9,13 @@ iosco:
 
 # Scheduling
 schedule:
+  base_date: "2025-10-28"
   daily_run_time: "02:00"     # local time for the daily ingestion + orchestration (24h)
-  heritrix_job_interval_days: 7
+  job_interval_days: 7
 
 queue:
   max_parallel_jobs: 5           # how many queue jobs can be RUNNING at once
-  reconcile_interval_seconds: 15 # how often the worker polls Heritrix to refresh job statuses
-  max_retries: 0                 # retry failed queue jobs (create/launch errors)
-  retry_backoff_seconds: 60      # wait before retrying a failed job
+  reconcile_interval_seconds: 15 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
 
 # Liveness
 liveness:
@@ -25,26 +23,15 @@ liveness:
   treat_http_4xx_as_live: true
   max_parallel_probes: 30
 
-# Heritrix integration
-heritrix:
-  base_url: "https://localhost:8443"
+# Browsertrix integration
+browsertrix:
+  base_url: "http://localhost:30870/"
   username: "admin"
   password: "admin"
-  jobs_dir: "/Data/scratch/cw486/phishingwebarchive/heritrix-3.10.2/jobs"
-  max_toe_threads: 5
-  robots_policy: "obey"               # obey|ignore|robotsTxtOnly|classic
-  limits:
-    max_time_seconds: 3600
-    max_documents: 20000
-    max_bytes: 3221225472
-  tls_verify: false                   # if using self-signed in lab
-  # Optional: client certs/CA bundle paths if needed
-
-# Unified Pywb collection
-pywb:
-  collection: "fma"
-  auto_index: true
-  wb_manager_bin: "wb-manager"        # must be in PATH for the service user
+  crawler_setting:
+    max_time: 3600
+    max_pages: 20000
+    max_size: 3221225472
 
 # Dead-site acquisition
 wb_downloader:
