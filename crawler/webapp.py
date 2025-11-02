@@ -1,14 +1,17 @@
 from __future__ import annotations
 import os
 import logging
-from flask import Flask, jsonify, render_template_string, request, Response, render_template
-from datetime import datetime
+from .config import Config
+import argparse
+from flask import Flask, jsonify, request, Response, render_template
+from datetime import datetime, timezone
 from .state import State
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
 def create_app(db_path: str, auth: dict | None = None) -> Flask:
+    """Create and configure the Flask web application."""
     app = Flask(__name__)
     st = State(db_path)
     basic_auth = auth or {"enabled": False}
@@ -30,7 +33,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         log.debug("GET /api/jobs")
         rows = st.conn.execute("""
             SELECT url,
-                type,
+                type AS job_type,
                 link,
                 status,
                 CAST(created_at AS TEXT) AS created_at,
@@ -39,10 +42,10 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         """).fetchall()
         log.debug(f"{len(rows)} jobs fetched")
         data = []
-        for (url, type, link, status, created_at, last_update) in rows:
+        for (url, job_type, link, status, created_at, last_update) in rows:
             data.append({
                 "url": url,
-                "type": type,
+                "type": job_type,
                 "status": status,
                 "created_at": created_at,
                 "last_update": last_update
@@ -57,14 +60,12 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         log.debug("GET /")
         # Reuse API data for rendering
         data = app.test_client().get("/api/jobs").get_json()
-        return render_template("index.html", rows=data, now=datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")+"Z")
+        return render_template("index.html", rows=data, now=datetime.now(timezone.utc).isoformat(timespec="seconds")+"Z")
 
     return app
 
 if __name__ == "__main__":
     # Quick manual run: python -m fma.webapp
-    from .config import Config
-    import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     args = ap.parse_args()

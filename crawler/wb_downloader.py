@@ -49,35 +49,22 @@ class WBDownloader:
     """
     def __init__(self, downloader: str, output_dir: str, concurrency: int):
         self.downloader = downloader
-        self.output_dir = Path(output_dir)
+        self._output_dir = output_dir
         self._status_log = output_dir + os.sep + 'wb_download.csv'
-        self.concurrency = concurrency
+        self._concurrency = concurrency
         self._jobs = {}
-        self._finished_jobs = {}
         log.info("WBDownloader initialized with output_dir=%s, concurrency=%d",
-                 self.output_dir, self.concurrency)
-
-    def job_finished(self, job_name: str) -> bool:
-        """ check if a wayback download job already exists (directory present) """
-        if self._job_status is None:
-            job_st = read_csv_file(self._status_log)
-            self._finished_jobs = {r['job']:r['status'] for r in job_st}
-        return job_name in self._finished_jobs
+                 self._output_dir, self._concurrency)
 
     def create_job(self, url) -> str:
-        """Create download job for domain, the job runs in a separate process.
+        """Create download job, the job runs in a separate process.
         Returns the job name.
         """
-        job_name = f"wb-{url.replace('.', '-')}"
-        if self.job_finished(job_name):
-            return job_name
-        job_dir = self.output_dir / job_name
-        job_dir.mkdir(parents=True, exist_ok=True)
-
-        cmd = [self.downloader, url, str(job_dir), str(self.concurrency)]
+        job_name = f"wb-{time.strftime('%Y%m%d-%H%M%S')}-{len(self._jobs) + 1}"
+        cmd = [self.downloader, url, str(self._concurrency), self._output_dir, job_name]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
-        self._jobs[job_name] = proc
-        log.info("Started wayback download job %s for url %s", job_name, url)
+        self._jobs[job_name] = (url, proc)
+        log.info("Started wayback download job for url %s", url)
         return job_name
 
     def get_job_status(self, job_name: str) -> str:
@@ -85,26 +72,49 @@ class WBDownloader:
         check job status.
         Returns: RUNNING | FINISHED | FAILED
         """
-        if self.job_finished(job_name):
-            return "FINISHED"
-
         if job_name not in self._jobs:
-            return "UNBUILT"
+            log.error("Job not found: %s", job_name)
+            return "FAILED"
 
-        proc = self._jobs[job_name]
+        proc = self._jobs[job_name][1]
         retcode = proc.poll()
         if retcode is None:
             return "RUNNING"
-        ret = proc.stdout.read().strip()
-        self._finished_jobs['job_name'] = ret
-        write_csv_file(self._status_log, [{"job":job_name,"status":ret}])
-        return ret
+
+        if retcode != 0:
+            log.error("Job %s failed with return code %d", job_name, retcode)
+            self._jobs.pop(job_name)
+            return "FAILED"
+
+        # find "job_name: STATUS,files_downloaded" in stdout
+        output = proc.stdout.read().strip()
+        match = re.search(rf"{re.escape(job_name)}:\s*(\w+),(\d+)", output)
+        if not match:
+            log.error("Job %s finished but status line not found in output", job_name)
+            self._jobs.pop(job_name)
+            return "FAILED"
+        status = match.group(1)
+        files_downloaded = match.group(2)
+        log.info("Job %s finished with status %s, files downloaded: %s",
+                    job_name, status, files_downloaded)
+        write_csv_file(self._status_log, [{"job_name":job_name,
+                                            "url":self._jobs[job_name][0],
+                                            "status":status,
+                                            "files_downloaded":files_downloaded,
+                                            "finished_at":time.strftime('%Y-%m-%d %H:%M:%S')}])
+        self._jobs.pop(job_name)
+        return status
+
+    def rebuild_job_info(self) -> List[Dict]:
+        """
+        Get all download jobs info from status log.
+        """
+        return read_csv_file(self._status_log)
 
     def destroy(self) -> None:
         """Terminate all running jobs."""
-        for job_name, proc in self._jobs.items():
+        for _, proc in self._jobs.values():
             if proc.poll() is None:
                 proc.terminate()
-                log.info("Terminated job %s", job_name)
         self._jobs.clear()
         log.info("All jobs terminated.")

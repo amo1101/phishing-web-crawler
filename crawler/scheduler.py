@@ -15,8 +15,8 @@ from .jobqueue import LIVE_CRAWL, WAYBACK_DOWNLOAD
 import logging
 log = logging.getLogger(__name__)
 
-
 def parse_csv_urls(csv_path: Path) -> List[str]:
+    """Parse URLs from the given CSV file."""
     urls: List[str] = []
     with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
@@ -25,9 +25,10 @@ def parse_csv_urls(csv_path: Path) -> List[str]:
                 if key in row and row[key]:
                     for u in row[key].split('|'):
                         urls.append(normalize_url(u))
-    return urls[:30]
+    return urls[:10] # TODO: remove limit
 
 def run_once(cfg: Config, st: State):
+    """Run one ingestion cycle: fetch CSV, parse URLs, classify liveness, enqueue jobs."""
     now = datetime.now(timezone.utc)
     log.info("Daily run started at %s", now.isoformat())
 
@@ -95,6 +96,7 @@ def _next_daily_time(local_hhmm: str) -> float:
     return (target - now).total_seconds()
 
 def run_loop(cfg: Config, st: State):
+    """Run the daily ingestion loop."""
     while True:
         try:
             # Wait until next daily time

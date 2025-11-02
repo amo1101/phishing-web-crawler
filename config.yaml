@@ -25,7 +25,7 @@ liveness:
 
 # Browsertrix integration
 browsertrix:
-  base_url: "http://localhost:30870/"
+  base_url: "http://localhost:30870"
   username: "admin"
   password: "admin"
   crawler_setting:

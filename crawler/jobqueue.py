@@ -16,6 +16,7 @@ LIVE_CRAWL = "LIVE_CRAWL"
 WAYBACK_DOWNLOAD = "WAYBACK_DOWNLOAD"
 
 class JobQueueWorker:
+    """ Manages job queue for crawl and download jobs. """
     def __init__(self, cfg, state: State):
         self.cfg = cfg
         self.state = state
@@ -32,26 +33,27 @@ class JobQueueWorker:
         self._stop = threading.Event()
 
     def stop(self):
+        """Signal the worker to stop."""
         self._stop.set()
 
     def _handle_job(self, job) -> None:
         jtype = job["type"]
         url = job["url"]
-        payload = job['payload'] or {}
+        job_name = ""
 
         if jtype == LIVE_CRAWL:
             log.info("LIVE_CRAWL url=%s", url)
-            payload['name'] = self.btrix.create_job(url, self.cfg["browsertrix"]["crawler_setting"])
+            job_name = self.btrix.create_job(url, self.cfg["browsertrix"]["crawler_setting"])
 
         elif jtype == WAYBACK_DOWNLOAD:
             log.info("WAYBACK_CREATE url=%s", url)
-            payload['name'] = self.wb_downloader.create_job(url)
+            job_name = self.wb_downloader.create_job(url)
 
         else:
             log.error("Unknow job type for url=%s", url)
             return
-        
-        self.state.update_job_payload(job["id"], payload)
+
+        self.state.update_job_name(job["id"], job_name)
 
     def _get_job_status(self, job_type, job_name) -> str:
         """ job status: PENDING->RUNNING->FINISHED/FAILED."""
@@ -63,7 +65,8 @@ class JobQueueWorker:
             return "UNKNOWN"
 
     def _reconcile(self):
-        """Poll Browsertrix for RUNNING jobs and mark SUCCEEDED when all underlying job_names are no longer RUNNING."""
+        """Poll Browsertrix for RUNNING jobs and mark SUCCEEDED when all underlying 
+        job_names are no longer RUNNING."""
         running = self.state.list_running_jobs()
         for job in running:
             payload = job.get("payload") or {}
@@ -75,11 +78,38 @@ class JobQueueWorker:
             elif status == 'FAILED':
                 self.state.mark_failed(job["id"])
 
+    def rebuild_job_info(self) -> List[Dict]:
+        """ Rebuild job info from existing jobs in Browsertrix and WBDownloader."""
+        for job in self.btrix.rebuild_job_info():
+            self.state.add_history_job(
+                job_type=LIVE_CRAWL,
+                job_name=job["job_name"],
+                url=job["url"],
+                status=job["status"],
+                link="" # TBD
+            )
+        for job in self.wb_downloader.rebuild_job_info():
+            self.state.add_history_job(
+                job_type=WAYBACK_DOWNLOAD,
+                job_name=job["job_name"],
+                url=job["url"],
+                status=job["status"],
+                link="" # TBD
+            )
+
     def run_forever(self):
+        """Main loop to process job queue."""
         max_parallel = int(self.cfg["queue"]["max_parallel_jobs"])
         reconcile_every = int(self.cfg["queue"]["reconcile_interval_seconds"])
 
-        log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds", max_parallel, reconcile_every)
+        log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds",
+                 max_parallel, reconcile_every)
+
+        if self.state.get_last_full_run() is None:
+            # try to rebuild job info from existing jobs
+            log.info("First run detected, rebuilding job info from existing jobs")
+            self.rebuild_job_info()
+
         while not self._stop.is_set():
             time.sleep(reconcile_every)
             try:
@@ -100,11 +130,12 @@ class JobQueueWorker:
 
             for job in jobs:
                 self.state.mark_running(job["id"])
-                log.info("Dequeued -> RUNNING id=%s type=%s url=%s", job["id"], job["type"], job["url"])
+                log.info("Dequeued -> RUNNING id=%s type=%s url=%s",
+                         job["id"], job["type"], job["url"])
                 try:
                     self._handle_job(job)
                 except Exception as ex:
-                    log.exception("Job %s failed in handler", job["id"])
+                    log.exception("Job %s failed in handler, error: %s", job["id"], str(ex))
 
         self.wb_downloader.destroy()
         log.info("JobQueue worker stopped")

@@ -19,17 +19,16 @@ CREATE TABLE IF NOT EXISTS meta (
 
 CREATE TABLE IF NOT EXISTS jobs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_name TEXT,
   type TEXT NOT NULL,            -- LIVE_CREATE | WAYBACK_CREATE
   url TEXT NOT NULL,
   link TEXT,
-  payload TEXT,
   status TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING | RUNNING | SUCCEEDED | FAILED
   priority INTEGER NOT NULL DEFAULT 100,
   attempts INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,
   created_at TIMESTAMP NOT NULL,
-  updated_at TIMESTAMP NOT NULL,
-  finished_at TIMESTAMP
+  updated_at TIMESTAMP NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, priority, created_at);
@@ -37,6 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_url ON jobs(url);
 """
 
 class State:
+    """SQLite-based state management."""
     def __init__(self, db_path: str):
         self.db_path = db_path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -85,27 +85,43 @@ class State:
 
     # --- meta helpers ---
     def get_meta(self, key: str) -> Optional[str]:
+        """Get a meta value by key."""
         row = self.conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
         return row[0] if row else None
 
     def set_meta(self, key: str, value: str) -> None:
+        """Set a meta value by key."""
         self.conn.execute("INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
 
     def get_last_full_run(self) -> Optional[datetime]:
+        """Get the timestamp of the last full run."""
         v = self.get_meta("last_full_run")
         return datetime.fromisoformat(v) if v else None
 
     def set_last_full_run(self, dt: datetime) -> None:
+        """Set the timestamp of the last full run."""
         self.set_meta("last_full_run", dt.replace(tzinfo=timezone.utc).isoformat())
 
     def get_last_incremental_run(self) -> Optional[datetime]:
+        """Get the timestamp of the last incremental run."""
         v = self.get_meta("last_incremental_run")
         return datetime.fromisoformat(v) if v else None
 
     def set_last_incremental_run(self, dt: datetime) -> None:
+        """Set the timestamp of the last incremental run."""
         self.set_meta("last_incremental_run", dt.replace(tzinfo=timezone.utc).isoformat())
 
-    # --- JOB QUEUE HELPERS (used by jobqueue.py and scheduler) ---
+    def add_history_job(self, job_type: str, job_name: str, url: str, status: str, link: str="") -> int:
+        """Add a history job record."""
+        now = datetime.now(timezone.utc).isoformat()
+        cur = self.conn.cursor()
+        cur.execute(
+            """INSERT INTO jobs(job_name,type,url,link,status,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?)""",
+            (job_name, job_type, url, link, status, now, now)
+        )
+        return cur.lastrowid
+
     def enqueue_job_unique(self, job_type: str, url: str, priority: int = 100) -> int | None:
         """
         Insert a PENDING job if there is no job of the same url + type
@@ -119,7 +135,7 @@ class State:
         if row:
             log.debug("Skip enqueue: existing PENDING type=%s url=%s", job_type, url)
             return None
-        now = datetime.now(datetime.timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cur.execute(
             """INSERT INTO jobs(type,url,status,priority,created_at,updated_at)
                VALUES(?,?,?,?,?,?)""",
@@ -129,6 +145,7 @@ class State:
         return cur.lastrowid
 
     def fetch_next_pending(self, limit: int) -> list[dict]:
+        """ Fetch next PENDING jobs up to limit, ordered by priority and created_at."""
         rows = self.conn.execute(
             """SELECT id,type,url,payload,priority,attempts FROM jobs
                WHERE status='PENDING'
@@ -145,28 +162,31 @@ class State:
         return out
 
     def mark_running(self, job_id: int):
-        now = datetime.now(datetime.timezone.utc).isoformat()
+        """Mark a job as RUNNING."""
+        now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "UPDATE jobs SET status='RUNNING', started_at=?, updated_at=? WHERE id=?",
-            (now, now, job_id)
+            "UPDATE jobs SET status='RUNNING', updated_at=? WHERE id=?",
+            (now, job_id)
         )
 
     def mark_succeeded(self, job_id: int):
-        now = datetime.now(datetime.timezone.utc).isoformat()
+        """Mark a job as SUCCEEDED."""
+        now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "UPDATE jobs SET status='SUCCEEDED', finished_at=?, updated_at=? WHERE id=?",
-            (now, now, job_id)
+            "UPDATE jobs SET status='SUCCEEDED', updated_at=? WHERE id=?",
+            (now, job_id)
         )
 
     def mark_failed(self, job_id: int, error: str, max_retries: int):
+        """Mark a job as FAILED or re-PENDING for retry."""
         cur = self.conn.cursor()
-        now = datetime.now(datetime.timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         row = cur.execute("SELECT attempts FROM jobs WHERE id=?", (job_id,)).fetchone()
         attempts = (row[0] if row else 0) + 1
         if attempts >= max_retries:
             self.conn.execute(
-                "UPDATE jobs SET status='FAILED', attempts=?, last_error=?, finished_at=?, updated_at=? WHERE id=?",
-                (attempts, error[:2000], now, now, job_id)
+                "UPDATE jobs SET status='FAILED', attempts=?, last_error=?, updated_at=? WHERE id=?",
+                (attempts, error[:2000], now, job_id)
             )
         else:
             # Put back to PENDING for retry
@@ -176,10 +196,12 @@ class State:
             )
 
     def count_running_jobs(self) -> int:
+        """Count the number of RUNNING jobs."""
         row = self.conn.execute("SELECT COUNT(*) FROM jobs WHERE status='RUNNING'").fetchone()
         return row[0] if row else 0
 
     def list_running_jobs(self) -> list[dict]:
+        """List all RUNNING jobs."""
         rows = self.conn.execute(
             "SELECT id,type,url FROM jobs WHERE status='RUNNING'"
         ).fetchall()
@@ -190,35 +212,16 @@ class State:
             })
         return out
 
-    def update_job_payload(self, job_id: int, payload: dict):
-        now = datetime.utcnow().isoformat()
+    def update_job_name(self, job_id: int, job_name: str):
+        """Update the job_name of a job."""
+        now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "UPDATE jobs SET payload=?, updated_at=? WHERE id=?",
-            (json.dumps(payload or {}), now, job_id)
+            "UPDATE jobs SET job_name=?, updated_at=? WHERE id=?",
+            (job_name, now, job_id)
         )
 
-    def job_running(self, url) -> bool:
-        rows = self.conn.execute(
-            "SELECT id FROM jobs WHERE url=? and status='RUNNING' LIMIT 1",
-            (url,)
-        ).fetchall()
-        return len(rows) > 0
-
-    def wayback_job_finished(self, domain) -> bool:
-        rows = self.conn.execute(
-            "SELECT id FROM jobs WHERE domain=? and type='WAYBACK_CREATE' and status='SUCCEEDED' LIMIT 1",
-            (domain,)
-        ).fetchall()
-        return len(rows) > 0
-
-    def wayback_latest_job_status(self, domain) -> str:
-        r = self.conn.execute(
-            "SELECT payload, status FROM jobs WHERE domain=? and type='WAYBACK_CREATE' ORDER BY created_at DESC LIMIT 1",
-            (domain,)
-        ).fetchone()
-        return {"payload": json.loads(r[0] or "{}"), "status": r[1]} if r else None
-
     def fetch_all_urls(self) -> list[dict]:
+        """Fetch all URLs in the jobs table."""
         rows = self.conn.execute(
             """SELECT url FROM jobs""",
         ).fetchall()
