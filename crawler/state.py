@@ -147,7 +147,7 @@ class State:
     def fetch_next_pending(self, limit: int) -> list[dict]:
         """ Fetch next PENDING jobs up to limit, ordered by priority and created_at."""
         rows = self.conn.execute(
-            """SELECT id,type,url,payload,priority,attempts FROM jobs
+            """SELECT id,type,url FROM jobs
                WHERE status='PENDING'
                ORDER BY priority ASC, created_at ASC
                LIMIT ?""", (limit,)
@@ -155,9 +155,7 @@ class State:
         out = []
         for r in rows:
             out.append({
-                "id": r[0], "type": r[1], "url": r[2],
-                "payload": json.loads(r[3] or "{}"),
-                "priority": r[4], "attempts": r[5],
+                "id": r[0], "type": r[1], "url": r[2]
             })
         return out
 
@@ -169,15 +167,15 @@ class State:
             (now, job_id)
         )
 
-    def mark_succeeded(self, job_id: int):
-        """Mark a job as SUCCEEDED."""
+    def mark_finished(self, job_id: int):
+        """Mark a job as FINISHED."""
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "UPDATE jobs SET status='SUCCEEDED', updated_at=? WHERE id=?",
+            "UPDATE jobs SET status='FINISHED', updated_at=? WHERE id=?",
             (now, job_id)
         )
 
-    def mark_failed(self, job_id: int, error: str, max_retries: int):
+    def mark_failed(self, job_id: int, error: str="", max_retries: int=0):
         """Mark a job as FAILED or re-PENDING for retry."""
         cur = self.conn.cursor()
         now = datetime.now(timezone.utc).isoformat()
@@ -203,12 +201,12 @@ class State:
     def list_running_jobs(self) -> list[dict]:
         """List all RUNNING jobs."""
         rows = self.conn.execute(
-            "SELECT id,type,url FROM jobs WHERE status='RUNNING'"
+            "SELECT id,type,job_name,url FROM jobs WHERE status='RUNNING'"
         ).fetchall()
         out = []
         for r in rows:
             out.append({
-                "id": r[0], "type": r[1], "url": r[2]
+                "id": r[0], "type": r[1], "job_name": r[2], "url": r[3]
             })
         return out
 

@@ -25,8 +25,14 @@ def main():
     t.start()
 
     # Run the scheduler loop (blocks)
-    run_loop(cfg, st)
-    worker.stop()
+    try:
+        run_loop(cfg, st)
+    except Exception as e:
+        log.info('Exception %s occured', str(e))
+    finally:
+        log.info('Quiting the crawler...')
+        worker.stop()
+        t.join()
 
 if __name__ == "__main__":
     main()

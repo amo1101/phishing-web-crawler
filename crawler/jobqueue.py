@@ -26,8 +26,7 @@ class JobQueueWorker:
             password=cfg["browsertrix"]["password"],
         )
         self.wb_downloader = WBDownloader(
-            downloader=cfg["wb_downloader"]["downloader"],
-            output_dir=cfg["wb_downloader"]["output_dir"],
+            output_base=cfg["wb_downloader"]["output_dir"],
             concurrency=int(cfg["wb_downloader"]["concurrency"])
         )
         self._stop = threading.Event()
@@ -65,16 +64,15 @@ class JobQueueWorker:
             return "UNKNOWN"
 
     def _reconcile(self):
-        """Poll Browsertrix for RUNNING jobs and mark SUCCEEDED when all underlying 
+        """Poll Browsertrix for RUNNING jobs and mark SUCCEEDED when all underlying
         job_names are no longer RUNNING."""
         running = self.state.list_running_jobs()
         for job in running:
-            payload = job.get("payload") or {}
-            job_names = payload.get("job_names") or []
+            job_names = job.get("job_name")
             jtype = job.get("type")
             status = self._get_job_status(jtype, job_names)
             if status == 'FINISHED':
-                self.state.mark_succeeded(job["id"])
+                self.state.mark_finished(job["id"])
             elif status == 'FAILED':
                 self.state.mark_failed(job["id"])
 
@@ -105,6 +103,11 @@ class JobQueueWorker:
         log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds",
                  max_parallel, reconcile_every)
 
+        # TODO:
+        log.info("Purge all crawls from Browsertrix for testing...")
+        self.btrix.purge_all_crawls()
+        self.btrix.purge_all_crawlconfigs()
+    
         if self.state.get_last_full_run() is None:
             # try to rebuild job info from existing jobs
             log.info("First run detected, rebuilding job info from existing jobs")

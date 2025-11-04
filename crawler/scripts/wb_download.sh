@@ -28,9 +28,9 @@ if ! [[ "$CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 # Create output/log directories
-mkdir -p "$OUTPUT_DIR/log"
+mkdir -p "$OUTPUT_DIR/download_log"
 
-LOG_FILE="$OUTPUT_DIR/log/$JOB_NAME.log"
+LOG_FILE="$OUTPUT_DIR/download_log/$JOB_NAME.log"
 
 # Optionally avoid Gemfile-induced conflicts:
 # export RUBYGEMS_GEMDEPS=-
@@ -49,6 +49,11 @@ CMD_EXIT=$?
 set -e
 
 echo "[$(date -Iseconds)] Finish downloading $URL from Wayback Machine (exit=$CMD_EXIT)" | tee -a "$LOG_FILE"
+
+if [[ $CMD_EXIT -ne 0 ]]; then
+  echo "ERROR: Downloader exited with status $CMD_EXIT" >&2
+  exit $CMD_EXIT
+fi
 
 # ---- Determine status ----
 STATUS="FAILED"

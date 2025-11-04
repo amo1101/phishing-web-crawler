@@ -37,7 +37,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
                 link,
                 status,
                 CAST(created_at AS TEXT) AS created_at,
-                CAST(updated_at AS TEXT) AS last_update,
+                CAST(updated_at AS TEXT) AS last_update
             FROM jobs ORDER BY created_at
         """).fetchall()
         log.debug(f"{len(rows)} jobs fetched")

@@ -1,21 +1,21 @@
 # Global paths
-state_db: /Data/scratch/cw486/phishingwebarchive/run/state.db
+state_db: "/home/uowadmin/iosco/data/state.db"
 
 iosco:
-  csv_root: "/Data/scratch/cw486/phishingwebarchive/run/iosco"
+  csv_root: "/home/uowadmin/iosco/data/csv"
   nca_id: 64
   subsection: "main"
   request_timeout_seconds: 60
 
 # Scheduling
 schedule:
-  base_date: "2025-10-28"
+  base_date: "2025-11-04"
   daily_run_time: "02:00"     # local time for the daily ingestion + orchestration (24h)
   job_interval_days: 7
 
 queue:
-  max_parallel_jobs: 5           # how many queue jobs can be RUNNING at once
-  reconcile_interval_seconds: 15 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
+  max_parallel_jobs: 10           # how many queue jobs can be RUNNING at once
+  reconcile_interval_seconds: 5 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
 
 # Liveness
 liveness:
@@ -26,8 +26,8 @@ liveness:
 # Browsertrix integration
 browsertrix:
   base_url: "http://localhost:30870"
-  username: "admin"
-  password: "admin"
+  username: "admin@example.com"
+  password: "PASSWORD!"
   crawler_setting:
     max_time: 3600
     max_pages: 20000
@@ -35,8 +35,7 @@ browsertrix:
 
 # Dead-site acquisition
 wb_downloader:
-  downloader: "/Data/scratch/cw486/phishingwebarchive/run/wb"
-  output_dir: "/Data/scratch/cw486/phishingwebarchive/run/wb"
+  output_dir: "/home/uowadmin/iosco/data/wayback"
   concurrency: 3          # how many files to download in parallel for Wayback downloads
 
 # Dashboard
@@ -51,7 +50,7 @@ web:
 
 logging:
   level: DEBUG                 # DEBUG | INFO | WARNING | ERROR
-  file: "/Data/scratch/cw486/phishingwebarchive/run/crawler.log"
+  file: "/home/uowadmin/iosco/crawler.log"
   rotate:
     when: "midnight"          # Timed rotation; alternatives: "S","M","H","D","W0"-"W6"
     backupCount: 14           # keep last 14 files

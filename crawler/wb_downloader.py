@@ -5,6 +5,8 @@ from typing import List, Dict, Optional
 import logging
 import subprocess
 import csv
+import uuid
+from .normalize import registrable_domain
 
 log = logging.getLogger(__name__)
 
@@ -47,21 +49,24 @@ class WBDownloader:
     using wayback machine downloader tool:
     https://github.com/StrawberryMaster/wayback-machine-downloader.git
     """
-    def __init__(self, downloader: str, output_dir: str, concurrency: int):
-        self.downloader = downloader
-        self._output_dir = output_dir
-        self._status_log = output_dir + os.sep + 'wb_download.csv'
+    def __init__(self, output_base: str, concurrency: int):
+        self._downloader = os.path.dirname(os.path.abspath(__file__)) + os.sep + "scripts/wb_download.sh"
+        self._output_base = output_base
+        self._status_log = output_base + os.sep + 'wb_download.csv'
         self._concurrency = concurrency
         self._jobs = {}
-        log.info("WBDownloader initialized with output_dir=%s, concurrency=%d",
-                 self._output_dir, self._concurrency)
+        log.info("WBDownloader initialized with output_base=%s, concurrency=%d",
+                 self._output_base, self._concurrency)
+
+    def get_output_dir(self, url: str) -> str:
+        return self._output_base + os.sep + registrable_domain(url)
 
     def create_job(self, url) -> str:
         """Create download job, the job runs in a separate process.
         Returns the job name.
         """
-        job_name = f"wb-{time.strftime('%Y%m%d-%H%M%S')}-{len(self._jobs) + 1}"
-        cmd = [self.downloader, url, str(self._concurrency), self._output_dir, job_name]
+        job_name = f"wb-{uuid.uuid4()}"
+        cmd = [self._downloader, url, str(self._concurrency), self.get_output_dir(url), job_name]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
         self._jobs[job_name] = (url, proc)
         log.info("Started wayback download job for url %s", url)
@@ -95,13 +100,15 @@ class WBDownloader:
             return "FAILED"
         status = match.group(1)
         files_downloaded = match.group(2)
-        log.info("Job %s finished with status %s, files downloaded: %s",
-                    job_name, status, files_downloaded)
+        url = self._jobs[job_name][0]
+        log.info("Job %s for url %s finished with status %s, files downloaded: %s",
+                    job_name, url, status, files_downloaded)
         write_csv_file(self._status_log, [{"job_name":job_name,
-                                            "url":self._jobs[job_name][0],
+                                            "url":url,
                                             "status":status,
+                                            "output_dir": self.get_output_dir(url),
                                             "files_downloaded":files_downloaded,
-                                            "finished_at":time.strftime('%Y-%m-%d %H:%M:%S')}])
+                                            "downloaded_at":time.strftime('%Y-%m-%d %H:%M:%S')}])
         self._jobs.pop(job_name)
         return status
 
