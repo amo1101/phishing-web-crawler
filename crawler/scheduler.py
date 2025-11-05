@@ -3,29 +3,14 @@ from datetime import datetime, date, time as dtime, timedelta, timezone
 import time
 from typing import Dict, List, Tuple, Set
 from pathlib import Path
-import csv
-
 from .config import Config
 from .state import State
-from .normalize import normalize_url, registrable_domain
-from .iosco import fetch_iosco_csv
+from .iosco import fetch_iosco_csv, parse_csv_url_info
 from .liveness import classify_urls
 from .jobqueue import LIVE_CRAWL, WAYBACK_DOWNLOAD
 
 import logging
 log = logging.getLogger(__name__)
-
-def parse_csv_urls(csv_path: Path) -> List[str]:
-    """Parse URLs from the given CSV file."""
-    urls: List[str] = []
-    with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            for key in ("url", "URL", "other_urls"):
-                if key in row and row[key]:
-                    for u in row[key].split('|'):
-                        urls.append(normalize_url(u))
-    return urls
 
 def run_once(cfg: Config, st: State):
     """Run one ingestion cycle: fetch CSV, parse URLs, classify liveness, enqueue jobs."""
@@ -63,7 +48,8 @@ def run_once(cfg: Config, st: State):
 
     # 2) Extract URLs and filter existing urls
     log.info("CSV path %s", csv_path)
-    urls = parse_csv_urls(csv_path)
+    url_info = parse_csv_url_info(csv_path)
+    urls = list(url_info)
     existing_urls = st.fetch_all_urls()
     log.info("Parsed %d URLs, existing URLs: %d", len(urls), len(existing_urls))
     new_urls = list(set(urls) - set(existing_urls))
@@ -81,13 +67,15 @@ def run_once(cfg: Config, st: State):
     for url, status in url_status.items():
         job_type = LIVE_CRAWL
         job_desc = 'Live'
-        job_priority = 100
+        job_priority = 50
+        nca_id, nca_jurisdiction, nca_name, validate_date = url_info[url]
         if status == "dead":
             job_type = WAYBACK_DOWNLOAD
             job_desc = "wayback download"
-            job_priority = 50
+            job_priority = 100
 
-        st.enqueue_job_unique(job_type, url, job_priority)
+        st.add_nca(nca_id, nca_jurisdiction, nca_name)
+        st.enqueue_job_unique(job_type, url, nca_id, validate_date, job_priority)
         log.info("Enqueued %s job for %s", job_desc, url)
 
 def _next_daily_time(local_hhmm: str) -> float:

@@ -45,15 +45,6 @@ def classify_urls(urls: List[str], timeout: int, treat_4xx_as_live: bool, max_wo
     # probe
     log.info("Liveness: probing %d URLs (timeout=%ss, workers=%d)", len(urls), timeout, max_workers)
     results: Dict[str, str] = {}
-
-    #TODO: FOR TEST
-    results['https://cybersecuritychallenge.org.nz']='dead'
-    results['https://www.waikato.ac.nz/about/our-story']='live'
-    results['https://www.merriam-webster.com/word-of-the-day']='live'
-    results['https://www.waikato.ac.nz/study/international/global-experiences']='dead'
-    results['https://www.worldcubeassociation.org/documents']='live'
-    return results
-
     with cf.ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(probe_url, u, timeout) for u in urls]
         for f in cf.as_completed(futs):

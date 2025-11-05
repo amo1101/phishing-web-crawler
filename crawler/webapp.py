@@ -6,6 +6,7 @@ import argparse
 from flask import Flask, jsonify, request, Response, render_template
 from datetime import datetime, timezone
 from .state import State
+from urllib.parse import urlencode
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -30,37 +31,67 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
     def api_jobs():
         if not _check_auth():
             return _auth_required()
-        log.debug("GET /api/jobs")
-        rows = st.conn.execute("""
-            SELECT url,
-                type AS job_type,
-                link,
-                status,
-                CAST(created_at AS TEXT) AS created_at,
-                CAST(updated_at AS TEXT) AS last_update
-            FROM jobs ORDER BY created_at
-        """).fetchall()
-        log.debug(f"{len(rows)} jobs fetched")
-        data = []
-        for (url, job_type, link, status, created_at, last_update) in rows:
-            data.append({
-                "url": url,
-                "type": job_type,
-                "status": status,
-                "created_at": created_at,
-                "last_update": last_update
-            })
-        log.info("Returned status for %d url", len(data))
-        return jsonify(data)
+            
+        page = int(request.args.get('page', 1))
+        status = request.args.get('status')
+        jurisdiction = request.args.get('jurisdiction')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        
+        jobs, total = st.get_filtered_jobs(
+            page=page,
+            status=status,
+            jurisdiction=jurisdiction, 
+            date_from=date_from,
+            date_to=date_to
+        )
+        
+        return jsonify({
+            "jobs": jobs,
+            "total": total,
+            "page": page,
+            "pages": (total + 19) // 20  # ceil(total/20)
+        })
 
     @app.route("/")
     def index():
         if not _check_auth():
             return _auth_required()
-        log.debug("GET /")
-        # Reuse API data for rendering
-        data = app.test_client().get("/api/jobs").get_json()
-        return render_template("index.html", rows=data, now=datetime.now(timezone.utc).isoformat(timespec="seconds")+"Z")
+            
+        # Get filter params
+        page = int(request.args.get('page', 1))
+        status = request.args.get('status')
+        jurisdiction = request.args.get('jurisdiction')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        
+        # Get filtered data
+        data = app.test_client().get("/api/jobs?" + urlencode({
+            'page': page,
+            'status': status,
+            'jurisdiction': jurisdiction,
+            'date_from': date_from, 
+            'date_to': date_to
+        })).get_json()
+        
+        # Get jurisdictions for filter dropdown
+        jurisdictions = st.get_jurisdictions()
+        
+        return render_template(
+            "index.html",
+            rows=data['jobs'],
+            total=data['total'],
+            current_page=page,
+            pages=data['pages'],
+            jurisdictions=jurisdictions,
+            filters={
+                'status': status,
+                'jurisdiction': jurisdiction,
+                'date_from': date_from,
+                'date_to': date_to
+            },
+            now=datetime.now(timezone.utc).isoformat(timespec="seconds")+"Z"
+        )
 
     return app
 

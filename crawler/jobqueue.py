@@ -38,15 +38,16 @@ class JobQueueWorker:
     def _handle_job(self, job) -> None:
         jtype = job["type"]
         url = job["url"]
+        job_desc = f"""nca_id:{job["nca_id"]},validation_date:{job["validation_date"]}"""
         job_name = ""
 
         if jtype == LIVE_CRAWL:
             log.info("LIVE_CRAWL url=%s", url)
-            job_name = self.btrix.create_job(url, self.cfg["browsertrix"]["crawler_setting"])
+            job_name = self.btrix.create_job(url, job_desc, self.cfg["browsertrix"]["crawler_setting"])
 
         elif jtype == WAYBACK_DOWNLOAD:
             log.info("WAYBACK_CREATE url=%s", url)
-            job_name = self.wb_downloader.create_job(url)
+            job_name = self.wb_downloader.create_job(url, job_desc)
 
         else:
             log.error("Unknow job type for url=%s", url)
@@ -61,7 +62,7 @@ class JobQueueWorker:
         elif job_type == WAYBACK_DOWNLOAD:
             return self.wb_downloader.get_job_status(job_name)
         else:
-            return "UNKNOWN"
+            return {"Status": "UNKNOWN"}
 
     def _reconcile(self):
         """Poll Browsertrix for RUNNING jobs and mark SUCCEEDED when all underlying
@@ -71,27 +72,44 @@ class JobQueueWorker:
             job_names = job.get("job_name")
             jtype = job.get("type")
             status = self._get_job_status(jtype, job_names)
-            if status == 'FINISHED':
-                self.state.mark_finished(job["id"])
-            elif status == 'FAILED':
+            if status["status"] == 'FINISHED':
+                self.state.mark_finished(job["id"], status["crawl_count"], status["file_count"])
+            elif status["status"] == 'FAILED':
                 self.state.mark_failed(job["id"])
+            else:
+                log.warning("Unknown status: %s", status["status"])
 
     def rebuild_job_info(self) -> List[Dict]:
         """ Rebuild job info from existing jobs in Browsertrix and WBDownloader."""
         for job in self.btrix.rebuild_job_info():
+            desc = job["description"]
+            nca_id = int(desc.split(",")[0].split[":"][1])
+            validation_date = desc.split(",")[1].split[":"][1]
             self.state.add_history_job(
                 job_type=LIVE_CRAWL,
                 job_name=job["job_name"],
                 url=job["url"],
+                nca_id=nca_id,
+                validation_date=validation_date,
                 status=job["status"],
+                crawl_count=job["crawl_count"],
+                file_count=job["file_count"],
                 link="" # TBD
             )
+
         for job in self.wb_downloader.rebuild_job_info():
+            desc = job["description"]
+            nca_id = int(desc.split(",")[0].split[":"][1])
+            validation_date = desc.split(",")[1].split[":"][1]
             self.state.add_history_job(
                 job_type=WAYBACK_DOWNLOAD,
                 job_name=job["job_name"],
                 url=job["url"],
+                nca_id=nca_id,
+                validation_date=validation_date,
                 status=job["status"],
+                crawl_count=1,
+                file_count=job["file_count"],
                 link="" # TBD
             )
 

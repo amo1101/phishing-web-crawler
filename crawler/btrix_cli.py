@@ -55,15 +55,16 @@ class BrowsertrixClient:
             raise
         return resp
 
-    def create_job(self, url: str,  job_setting: Dict) -> str:
+    def create_job(self, url: str,  job_desc: str, job_setting: Dict) -> str:
         """Create and start a crawl job for the given URL. """
         crawl_setting = {
             "schedule": "", # TBD
             "runNow": True,
             "name": f"crawl-{url}",
+            "description": job_desc,
             "config": {
                 "seeds": [{"url": url}],
-                "scopeType": "prefix" # TBD
+                "scopeType": "page" # TBD
             }
         }
         job_name = ""
@@ -96,9 +97,13 @@ class BrowsertrixClient:
         job = self.list_crawlconfigs(cid=job_name)
         if not job:
             log.error("Crawl job not found: %s", job_name)
-            return "FAILED"
+            return {"status":"FAILED"}
         state = job[0].get("lastCrawlState", "UNKNOWN")
-        return self._convert_status(state)
+        crawl_count = job[0].get("crawlSuccessfulCount", 0)
+        crawl_pages = job[0].get("lastCrawlStats").get("done")
+        return {"status":self._convert_status(state),
+                "crawl_count": crawl_count,
+                "file_count":crawl_pages}
 
     def rebuild_job_info(self) -> List[Dict]:
         """
@@ -109,8 +114,11 @@ class BrowsertrixClient:
             configs = self.list_crawlconfigs()
             for config in configs:
                 jobs.append({"job_name": config.get("id"),
+                             "desc": config.get("description"),
                              "url": config.get("firstSeed"),
-                             "status": self._convert_status(config.get("lastCrawlState"))})
+                             "status": self._convert_status(config.get("lastCrawlState")),
+                             "crawl_count": config.get("crawlSuccessfulCount", 0),
+                             "file_count": config.get("lastCrawlStats").get("done")})
             log.debug("Retrieved %d crawl configs", len(jobs))
         except Exception as e:
             log.error("Failed to retrieve crawl jobs: %s", str(e))

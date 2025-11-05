@@ -3,6 +3,10 @@ from pathlib import Path
 from datetime import date
 from typing import Optional
 import logging, requests
+from typing import Dict, List, Tuple, Set
+from pathlib import Path
+import csv
+from .normalize import normalize_url, registrable_domain
 
 log = logging.getLogger(__name__)
 
@@ -46,3 +50,23 @@ def fetch_iosco_csv(
         raise
     log.info("Saved IOSCO CSV: %s (bytes=%s)", out_path, out_path.stat().st_size)
     return out_path
+
+def parse_csv_url_info(csv_path: Path) -> List[str]:
+    """Parse URLs from the given CSV file.
+    Return (url, nca_id, nca_jurisdiction, nca_name, validation_date)"""
+    urls: map[str] = ()
+    with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            for key in ("url", "URL"):
+                if key in row and row[key]:
+                    try:
+                        url = normalize_url(row[key])
+                        urls[url] = (int(row.get("nca_id",0)),
+                                     row.get("nca_jurisdiction",""),
+                                     row.get("nca_name",""),
+                                     row.get("validation_date",""))
+                    except Exception as e:
+                        log.error(f"Error occurred when parsing url: {e}")
+                        continue
+    return urls

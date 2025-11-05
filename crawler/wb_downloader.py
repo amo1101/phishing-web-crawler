@@ -61,14 +61,14 @@ class WBDownloader:
     def get_output_dir(self, url: str) -> str:
         return self._output_base + os.sep + registrable_domain(url)
 
-    def create_job(self, url) -> str:
+    def create_job(self, url, job_desc) -> str:
         """Create download job, the job runs in a separate process.
         Returns the job name.
         """
         job_name = f"wb-{uuid.uuid4()}"
         cmd = [self._downloader, url, str(self._concurrency), self.get_output_dir(url), job_name]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
-        self._jobs[job_name] = (url, proc)
+        self._jobs[job_name] = (url, job_desc, proc)
         log.info("Started wayback download job for url %s", url)
         return job_name
 
@@ -79,17 +79,17 @@ class WBDownloader:
         """
         if job_name not in self._jobs:
             log.error("Job not found: %s", job_name)
-            return "FAILED"
+            return {"status":"FAILED"}
 
-        proc = self._jobs[job_name][1]
+        proc = self._jobs[job_name][2]
         retcode = proc.poll()
         if retcode is None:
-            return "RUNNING"
+            return {"status":"RUNNING"}
 
         if retcode != 0:
             log.error("Job %s failed with return code %d", job_name, retcode)
             self._jobs.pop(job_name)
-            return "FAILED"
+            return {"status":"FAILED"}
 
         # find "job_name: STATUS,files_downloaded" in stdout
         output = proc.stdout.read().strip()
@@ -97,20 +97,22 @@ class WBDownloader:
         if not match:
             log.error("Job %s finished but status line not found in output", job_name)
             self._jobs.pop(job_name)
-            return "FAILED"
+            return {"status":"FAILED"}
         status = match.group(1)
         files_downloaded = match.group(2)
         url = self._jobs[job_name][0]
+        job_desc = self._jobs[job_name][1]
         log.info("Job %s for url %s finished with status %s, files downloaded: %s",
                     job_name, url, status, files_downloaded)
         write_csv_file(self._status_log, [{"job_name":job_name,
+                                           "desc":job_desc,
                                             "url":url,
                                             "status":status,
                                             "output_dir": self.get_output_dir(url),
-                                            "files_downloaded":files_downloaded,
+                                            "file_count":files_downloaded,
                                             "downloaded_at":time.strftime('%Y-%m-%d %H:%M:%S')}])
         self._jobs.pop(job_name)
-        return status
+        return {"status":status, "crawl_count": 1, "file_count":int(files_downloaded)}
 
     def rebuild_job_info(self) -> List[Dict]:
         """
@@ -120,7 +122,7 @@ class WBDownloader:
 
     def destroy(self) -> None:
         """Terminate all running jobs."""
-        for _, proc in self._jobs.values():
+        for _, _, proc in self._jobs.values():
             if proc.poll() is None:
                 proc.terminate()
         self._jobs.clear()
