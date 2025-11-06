@@ -1,5 +1,5 @@
 # phishing-web-crawler
-A tool for archiving phishing websites reported by [IOSCO](https://www.example.com).
+A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org/).
 
 📍 Self-hosting [Browsertrix](https://docs.browsertrix.com/) for live websites crawling.
 
