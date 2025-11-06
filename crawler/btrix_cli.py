@@ -64,7 +64,8 @@ class BrowsertrixClient:
             "description": job_desc,
             "config": {
                 "seeds": [{"url": url}],
-                "scopeType": "page" # TBD
+                "scopeType": "prefix",
+                "blockAds": True
             }
         }
         job_name = ""

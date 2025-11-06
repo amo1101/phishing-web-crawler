@@ -91,16 +91,18 @@ class JobQueueWorker:
             desc = job["desc"]
             nca_id = int(desc.split(",")[0].split(":")[1]) if desc else 0
             validation_date = desc.split(",")[1].split(":")[1] if desc else ""
+            job_name=job["job_name"]
+            job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/my-organization/workflows/{job_name}"
             self.state.add_history_job(
                 job_type=LIVE_CRAWL,
-                job_name=job["job_name"],
+                job_name=job_name,
                 url=job["url"],
                 nca_id=nca_id,
                 validation_date=validation_date,
                 status=job["status"],
                 crawl_count=job["crawl_count"],
                 file_count=job["file_count"],
-                link="" # TBD
+                link=job_link
             )
 
         for job in self.wb_downloader.rebuild_job_info():
@@ -116,7 +118,7 @@ class JobQueueWorker:
                 status=job["status"],
                 crawl_count=1,
                 file_count=job["file_count"],
-                link="" # TBD
+                link=""
             )
 
     def run_forever(self):
@@ -129,7 +131,7 @@ class JobQueueWorker:
         log.info("JobQueue worker started: max_parallel_crawl_jobs=%d, max_parallel_download_jobs=%d, reconcile_every=%ds",
                  max_parallel[LIVE_CRAWL], max_parallel[WAYBACK_DOWNLOAD], reconcile_every)
 
-        # TODO:
+        # For testing only
         log.info("Purge all crawls from Browsertrix for testing...")
         self.btrix.purge_all_crawls()
         self.btrix.purge_all_crawlconfigs()

@@ -1,21 +1,7 @@
 # phishing-web-crawler
-crawl phising web sites and archive them
+A tool for archiving phishing websites reported by [IOSCO](https://www.example.com).
 
-# system deps
-sudo apt-get update
-sudo apt-get install -y python3 python3-venv
+📍 Self-hosting [Brosertrix](https://docs.browsertrix.com/) for live websites crawling.
 
-# repo
-sudo mkdir -p /opt/fma-crawler
-sudo chown -R "$USER":"$USER" /opt/fma-crawler
-cd /opt/fma-crawler
+📍 [wayback machine downloader](https://github.com/StrawberryMaster/wayback-machine-downloader.git) for "dead" websites downloading.
 
-python3 -m venv venv
-./venv/bin/pip install -U pip
-./venv/bin/pip install -r requirements.txt
-
-# Enable and start
-sudo cp systemd/fma-crawler.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now fma-crawler
-journalctl -u fma-crawler -f
