@@ -54,7 +54,7 @@ def fetch_iosco_csv(
 def parse_csv_url_info(csv_path: Path) -> List[str]:
     """Parse URLs from the given CSV file.
     Return (url, nca_id, nca_jurisdiction, nca_name, validation_date)"""
-    urls: map[str] = ()
+    urls: map[str] = {}
     with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:

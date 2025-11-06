@@ -9,13 +9,15 @@ iosco:
 
 # Scheduling
 schedule:
-  base_date: "2025-11-04"
+  base_date: "2025-11-03"
   daily_run_time: "02:00"     # local time for the daily ingestion + orchestration (24h)
   job_interval_days: 7
 
 queue:
-  max_parallel_jobs: 10           # how many queue jobs can be RUNNING at once
-  reconcile_interval_seconds: 5 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
+  max_parallel_crawl_jobs: 5
+  max_parallel_download_jobs: 1
+  max_retries: 3 # now applies only to wayback download jobs
+  reconcile_interval_seconds: 10 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
 
 # Liveness
 liveness:

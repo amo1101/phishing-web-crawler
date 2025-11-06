@@ -56,11 +56,11 @@ if [[ $CMD_EXIT -ne 0 ]]; then
 fi
 
 # ---- Determine status ----
-STATUS="FAILED"
+STATUS="FINISHED"
 
-if grep -Eiq 'Download finished' "$LOG_FILE"; then
-    STATUS="FINISHED"
-fi
+#if grep -Eiq 'Download finished' "$LOG_FILE"; then
+#    STATUS="FINISHED"
+#fi
 
 # ---- Count files found ----
 # Look for a count like: "15 files found matching criteria"

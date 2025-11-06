@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   type TEXT NOT NULL,
   url TEXT NOT NULL,
   nca_id INTEGER NOT NULL,
-  validation_date TIMESTAMP NOT NULL,
+  validation_date DATE,
   link TEXT,
   priority INTEGER NOT NULL DEFAULT 100,
   attempts INTEGER NOT NULL DEFAULT 0,
@@ -135,7 +135,7 @@ class State:
         cur = self.conn.cursor()
         cur.execute(
             """INSERT INTO jobs(job_name,type,url,nca_id,validation_date,link,status,crawl_count,last_crawl_file_count,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?)""",
+               VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
             (job_name, job_type, url, nca_id, validation_date, link, status, crawl_count, file_count, now, now)
         )
         return cur.lastrowid
@@ -156,19 +156,19 @@ class State:
         now = datetime.now(timezone.utc).isoformat()
         cur.execute(
             """INSERT INTO jobs(type,url,nca_id,validation_date,status,priority,created_at,updated_at)
-               VALUES(?,?,?,?,?,?)""",
+               VALUES(?,?,?,?,?,?,?,?)""",
             (job_type, url, nca_id, validation_date, "PENDING", priority, now, now)
         )
         log.info("Enqueued job type=%s url=%s priority=%s", job_type, url, priority)
         return cur.lastrowid
 
-    def fetch_next_pending(self, limit: int) -> list[dict]:
+    def fetch_next_pending(self, job_type: str, limit: int) -> list[dict]:
         """ Fetch next PENDING jobs up to limit, ordered by priority and created_at."""
         rows = self.conn.execute(
             """SELECT id,type,url,nca_id,validation_date FROM jobs
-               WHERE status='PENDING'
+               WHERE status='PENDING' and type=?
                ORDER BY priority ASC, created_at ASC
-               LIMIT ?""", (limit,)
+               LIMIT ?""", (job_type, limit)
         ).fetchall()
         out = []
         for r in rows:
@@ -193,7 +193,7 @@ class State:
             (crawl_count, file_count, now, job_id)
         )
 
-    def mark_failed(self, job_id: int, error: str="", max_retries: int=0):
+    def mark_failed(self, job_id: int, max_retries: int=0):
         """Mark a job as FAILED or re-PENDING for retry."""
         cur = self.conn.cursor()
         now = datetime.now(timezone.utc).isoformat()
@@ -201,19 +201,19 @@ class State:
         attempts = (row[0] if row else 0) + 1
         if attempts >= max_retries:
             self.conn.execute(
-                "UPDATE jobs SET status='FAILED', attempts=?, last_error=?, updated_at=? WHERE id=?",
-                (attempts, error[:2000], now, job_id)
+                "UPDATE jobs SET status='FAILED', attempts=?, updated_at=? WHERE id=?",
+                (attempts, now, job_id)
             )
         else:
             # Put back to PENDING for retry
             self.conn.execute(
-                "UPDATE jobs SET status='PENDING', attempts=?, last_error=?, updated_at=? WHERE id=?",
-                (attempts, error[:2000], now, job_id)
+                "UPDATE jobs SET status='PENDING', attempts=?, updated_at=? WHERE id=?",
+                (attempts, now, job_id)
             )
 
-    def count_running_jobs(self) -> int:
+    def count_running_jobs(self, job_type: str) -> int:
         """Count the number of RUNNING jobs."""
-        row = self.conn.execute("SELECT COUNT(*) FROM jobs WHERE status='RUNNING'").fetchone()
+        row = self.conn.execute("SELECT COUNT(*) FROM jobs WHERE status='RUNNING' and type=?", (job_type,)).fetchone()
         return row[0] if row else 0
 
     def list_running_jobs(self) -> list[dict]:
@@ -261,8 +261,8 @@ class State:
             (nca_id, nca_jurisdiction, nca_name)
         )
 
-    def get_filtered_jobs(self, page: int = 1, per_page: int = 20, 
-                     status: str = None, jurisdiction: str = None,
+    def get_filtered_jobs(self, page: int = 1, per_page: int = 20,
+                     job_type:str = None, status: str = None, jurisdiction: str = None,
                      date_from: str = None, date_to: str = None) -> Tuple[List[Dict], int]:
         """
         Get filtered and paginated jobs joined with NCA data.
@@ -270,7 +270,7 @@ class State:
         """
         query = """
             SELECT j.url, j.type AS job_type, j.link, j.status,
-                   j.validation_date, j.crawl_count, j.last_crawl_file_count,
+                   CAST(j.validation_date AS TEXT) AS validation_date, j.crawl_count, j.last_crawl_file_count,
                    CAST(j.created_at AS TEXT) AS created_at,
                    CAST(j.updated_at AS TEXT) AS last_update,
                    n.nca_jurisdiction, n.nca_name
@@ -284,6 +284,9 @@ class State:
         if status:
             query += " AND j.status = ?"
             params.append(status)
+        if job_type:
+            query += " AND j.type = ?"
+            params.append(job_type)
         if jurisdiction:
             query += " AND n.nca_jurisdiction = ?"
             params.append(jurisdiction)
@@ -293,15 +296,15 @@ class State:
         if date_to:
             query += " AND j.validation_date <= ?"
             params.append(date_to)
-            
+
         # Get total count
         count_query = f"SELECT COUNT(*) FROM ({query}) AS t"
         total = self.conn.execute(count_query, params).fetchone()[0]
-        
+
         # Add pagination
         query += " ORDER BY j.created_at DESC LIMIT ? OFFSET ?"
         params.extend([per_page, (page - 1) * per_page])
-        
+
         rows = self.conn.execute(query, params).fetchall()
         jobs = []
         for row in rows:

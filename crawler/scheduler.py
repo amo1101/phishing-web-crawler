@@ -8,6 +8,7 @@ from .state import State
 from .iosco import fetch_iosco_csv, parse_csv_url_info
 from .liveness import classify_urls
 from .jobqueue import LIVE_CRAWL, WAYBACK_DOWNLOAD
+import traceback
 
 import logging
 log = logging.getLogger(__name__)
@@ -104,4 +105,5 @@ def run_loop(cfg: Config, st: State):
 
         except Exception as e:
             log.error('An exception occurred: %s', str(e))
+            traceback.print_exc()
             time.sleep(5)

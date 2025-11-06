@@ -14,6 +14,7 @@ log = logging.getLogger(__name__)
 def create_app(db_path: str, auth: dict | None = None) -> Flask:
     """Create and configure the Flask web application."""
     app = Flask(__name__)
+    app.jinja_env.add_extension('jinja2.ext.do')
     st = State(db_path)
     basic_auth = auth or {"enabled": False}
 
@@ -27,6 +28,12 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
     def _auth_required():
         return Response("Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Phishing Web Crawler"'})
 
+    @app.template_filter('dateformat')
+    def dateformat(value, format='%Y-%m-%d'):
+        if value is None:
+            return ''
+        return value.strftime(format)
+
     @app.route("/api/jobs")
     def api_jobs():
         if not _check_auth():
@@ -34,6 +41,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
             
         page = int(request.args.get('page', 1))
         status = request.args.get('status')
+        job_type = request.args.get('job_type')
         jurisdiction = request.args.get('jurisdiction')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
@@ -41,6 +49,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         jobs, total = st.get_filtered_jobs(
             page=page,
             status=status,
+            job_type=job_type,
             jurisdiction=jurisdiction, 
             date_from=date_from,
             date_to=date_to
@@ -61,6 +70,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         # Get filter params
         page = int(request.args.get('page', 1))
         status = request.args.get('status')
+        job_type = request.args.get('job_type')
         jurisdiction = request.args.get('jurisdiction')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
@@ -69,6 +79,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         data = app.test_client().get("/api/jobs?" + urlencode({
             'page': page,
             'status': status,
+            'job_type': job_type,
             'jurisdiction': jurisdiction,
             'date_from': date_from, 
             'date_to': date_to
@@ -86,6 +97,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
             jurisdictions=jurisdictions,
             filters={
                 'status': status,
+                'job_type': job_type,
                 'jurisdiction': jurisdiction,
                 'date_from': date_from,
                 'date_to': date_to

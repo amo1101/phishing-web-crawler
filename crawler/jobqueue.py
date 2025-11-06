@@ -75,16 +75,20 @@ class JobQueueWorker:
             if status["status"] == 'FINISHED':
                 self.state.mark_finished(job["id"], status["crawl_count"], status["file_count"])
             elif status["status"] == 'FAILED':
-                self.state.mark_failed(job["id"])
+                self.state.mark_failed(job["id"], int(self.cfg["queue"]["max_retries"]) \
+                                       if jtype == WAYBACK_DOWNLOAD else 0)
+            elif status["status"] == 'RUNNING':
+                # still running
+                pass
             else:
                 log.warning("Unknown status: %s", status["status"])
 
     def rebuild_job_info(self) -> List[Dict]:
         """ Rebuild job info from existing jobs in Browsertrix and WBDownloader."""
         for job in self.btrix.rebuild_job_info():
-            desc = job["description"]
-            nca_id = int(desc.split(",")[0].split[":"][1])
-            validation_date = desc.split(",")[1].split[":"][1]
+            desc = job["desc"]
+            nca_id = int(desc.split(",")[0].split(":")[1]) if desc else 0
+            validation_date = desc.split(",")[1].split(":")[1] if desc else ""
             self.state.add_history_job(
                 job_type=LIVE_CRAWL,
                 job_name=job["job_name"],
@@ -98,9 +102,9 @@ class JobQueueWorker:
             )
 
         for job in self.wb_downloader.rebuild_job_info():
-            desc = job["description"]
-            nca_id = int(desc.split(",")[0].split[":"][1])
-            validation_date = desc.split(",")[1].split[":"][1]
+            desc = job["desc"]
+            nca_id = int(desc.split(",")[0].split(":")[1]) if desc else 0
+            validation_date = desc.split(",")[1].split(":")[1] if desc else ""
             self.state.add_history_job(
                 job_type=WAYBACK_DOWNLOAD,
                 job_name=job["job_name"],
@@ -115,11 +119,13 @@ class JobQueueWorker:
 
     def run_forever(self):
         """Main loop to process job queue."""
-        max_parallel = int(self.cfg["queue"]["max_parallel_jobs"])
+        max_parallel = {}
+        max_parallel[LIVE_CRAWL] = int(self.cfg["queue"]["max_parallel_crawl_jobs"])
+        max_parallel[WAYBACK_DOWNLOAD] = int(self.cfg["queue"]["max_parallel_download_jobs"])
         reconcile_every = int(self.cfg["queue"]["reconcile_interval_seconds"])
 
-        log.info("JobQueue worker started: max_parallel=%d reconcile_every=%ds",
-                 max_parallel, reconcile_every)
+        log.info("JobQueue worker started: max_parallel_crawl_jobs=%d, max_parallel_download_jobs=%d, reconcile_every=%ds",
+                 max_parallel[LIVE_CRAWL], max_parallel[WAYBACK_DOWNLOAD], reconcile_every)
 
         # TODO:
         log.info("Purge all crawls from Browsertrix for testing...")
@@ -138,15 +144,18 @@ class JobQueueWorker:
             except Exception:
                 log.exception("Reconcile failed")
 
-            running = self.state.count_running_jobs()
-            capacity = max_parallel - running
-            log.debug("Reconciled queue: currently running=%d, capacity=%d",
-                      running, capacity)
-            if capacity <= 0:
-                continue
+            jobs = []
+            for job_type in [LIVE_CRAWL, WAYBACK_DOWNLOAD]:
+                running = self.state.count_running_jobs(job_type)
+                capacity = max_parallel[job_type] - running
+                log.debug("Reconciled queue of %s jobs: currently running=%d, capacity=%d",
+                          job_type, running, capacity)
+                if capacity <= 0:
+                    continue
 
-            jobs = self.state.fetch_next_pending(limit=capacity)
-            if not jobs:
+                jobs += self.state.fetch_next_pending(job_type, capacity)
+
+            if len(jobs) == 0:
                 continue
 
             for job in jobs:
