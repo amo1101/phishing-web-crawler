@@ -87,7 +87,7 @@ def create_app(db_path: str, auth: dict | None = None) -> Flask:
         
         # Get jurisdictions for filter dropdown
         jurisdictions = st.get_jurisdictions()
-        
+    
         return render_template(
             "index.html",
             rows=data['jobs'],

@@ -138,7 +138,13 @@
           <td>{{ row.jurisdiction or '' }}</td>
           <td>{{ row.nca_name or '' }}</td>
           <td>{{ row.validation_date }}</td>
-          <td>{{ row.crawl_count or 0 }}</td>
+          <td>
+            {% if row.job_link %}
+              <a href="{{ row.job_link }}" target="_blank" rel="noopener noreferrer"> {{ row.crawl_count or 0 }} </a>
+            {% else %}
+              {{ row.crawl_count or 0 }}
+            {% endif %}
+          </td>
           <td>{{ row.file_count or 0 }}</td>
           <td>{{ row.last_update or '' }}</td>
         </tr>

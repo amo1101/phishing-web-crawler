@@ -40,10 +40,12 @@ class JobQueueWorker:
         url = job["url"]
         job_desc = f"""nca_id:{job["nca_id"]},validation_date:{job["validation_date"]}"""
         job_name = ""
+        job_link = ""
 
         if jtype == LIVE_CRAWL:
             log.info("LIVE_CRAWL url=%s", url)
             job_name = self.btrix.create_job(url, job_desc, self.cfg["browsertrix"]["crawler_setting"])
+            job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/my-organization/workflows/{job_name}"
 
         elif jtype == WAYBACK_DOWNLOAD:
             log.info("WAYBACK_CREATE url=%s", url)
@@ -53,7 +55,7 @@ class JobQueueWorker:
             log.error("Unknow job type for url=%s", url)
             return
 
-        self.state.update_job_name(job["id"], job_name)
+        self.state.update_job_info(job["id"], job_name, job_link)
 
     def _get_job_status(self, job_type, job_name) -> str:
         """ job status: PENDING->RUNNING->FINISHED/FAILED."""

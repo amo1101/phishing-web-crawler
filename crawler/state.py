@@ -228,12 +228,12 @@ class State:
             })
         return out
 
-    def update_job_name(self, job_id: int, job_name: str):
+    def update_job_info(self, job_id: int, job_name: str, link: str=""):
         """Update the job_name of a job."""
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "UPDATE jobs SET job_name=?, updated_at=? WHERE id=?",
-            (job_name, now, job_id)
+            "UPDATE jobs SET job_name=?, link=?, updated_at=? WHERE id=?",
+            (job_name, link, now, job_id)
         )
 
     def fetch_all_urls(self) -> list[dict]:
@@ -269,7 +269,7 @@ class State:
         Returns tuple of (jobs list, total count)
         """
         query = """
-            SELECT j.url, j.type AS job_type, j.link, j.status,
+            SELECT j.url, j.type AS job_type, j.link AS job_link, j.status,
                    CAST(j.validation_date AS TEXT) AS validation_date, j.crawl_count, j.last_crawl_file_count,
                    CAST(j.created_at AS TEXT) AS created_at,
                    CAST(j.updated_at AS TEXT) AS last_update,
@@ -311,7 +311,7 @@ class State:
             jobs.append({
                 "url": row[0],
                 "type": row[1], 
-                "link": row[2],
+                "job_link": row[2],
                 "status": row[3],
                 "validation_date": row[4],
                 "crawl_count": row[5],
