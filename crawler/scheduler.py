@@ -23,13 +23,15 @@ def run_once(cfg: Config, st: State):
     last_incr = st.get_last_incremental_run()
     csv_root = Path(cfg["iosco"]["csv_root"])
 
+    # Testing: force full run
+    #last_full = None
     if last_full is None:
         # First full run from base_date
         csv_path = fetch_iosco_csv(
             csv_root=csv_root,
             start_date=datetime.strptime(cfg["schedule"]["base_date"], '%Y-%m-%d').date(),
             end_date=now.date(),
-            nca_id=int(cfg["iosco"]["nca_id"]),
+            nca_id=cfg["iosco"]["nca_id"],
             subsection=cfg["iosco"]["subsection"],
             timeout=int(cfg["iosco"]["request_timeout_seconds"])
         )
@@ -41,7 +43,7 @@ def run_once(cfg: Config, st: State):
             csv_root=csv_root,
             start_date=start.date(),
             end_date=now.date(),
-            nca_id=int(cfg["iosco"]["nca_id"]),
+            nca_id=cfg["iosco"]["nca_id"],
             subsection=cfg["iosco"]["subsection"],
             timeout=int(cfg["iosco"]["request_timeout_seconds"])
         )
@@ -80,7 +82,6 @@ def run_once(cfg: Config, st: State):
         log.info("Enqueued %s job for %s", job_desc, url)
 
 def _next_daily_time(local_hhmm: str) -> float:
-    return 0
     # returns seconds until next occurrence of local_hhmm
     hh, mm = map(int, local_hhmm.split(":"))
     now = datetime.now()

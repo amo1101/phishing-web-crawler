@@ -56,7 +56,15 @@ class BrowsertrixClient:
         return resp
 
     def create_job(self, url: str,  job_desc: str, job_setting: Dict) -> str:
-        """Create and start a crawl job for the given URL. """
+        """Create and start a crawl job for the given URL.
+        If it is facebook.com, twitter.com, instagram.com, linkedin.com, pinterest.com,
+        tiktok.com, youtube.com, only crawl the page.
+        TODO: we need special handling to login first with browser profile
+        """
+        scope = "prefix"
+        if re.search(r"https?://(www\.)?(facebook|twitter|instagram|linkedin|pinterest|tiktok|youtube)\.com", url):
+            scope = "page"
+            log.debug("Special handling for social media site: %s", url)
         crawl_setting = {
             "schedule": "", # TBD
             "runNow": True,
@@ -64,7 +72,7 @@ class BrowsertrixClient:
             "description": job_desc,
             "config": {
                 "seeds": [{"url": url}],
-                "scopeType": "prefix",
+                "scopeType": scope,
                 "blockAds": True
             }
         }

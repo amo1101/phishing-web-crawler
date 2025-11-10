@@ -3,7 +3,7 @@ state_db: "/home/uowadmin/iosco/data/state.db"
 
 iosco:
   csv_root: "/home/uowadmin/iosco/data/csv"
-  nca_id: 64
+  nca_id: ""        # e.g., "64" for NZ; leave empty for all NCAs
   subsection: "main"
   request_timeout_seconds: 60
 

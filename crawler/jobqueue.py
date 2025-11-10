@@ -132,9 +132,9 @@ class JobQueueWorker:
                  max_parallel[LIVE_CRAWL], max_parallel[WAYBACK_DOWNLOAD], reconcile_every)
 
         # For testing only
-        log.info("Purge all crawls from Browsertrix for testing...")
-        self.btrix.purge_all_crawls()
-        self.btrix.purge_all_crawlconfigs()
+        #log.info("Purge all crawls from Browsertrix for testing...")
+        #self.btrix.purge_all_crawls()
+        #self.btrix.purge_all_crawlconfigs()
     
         if self.state.get_last_full_run() is None:
             # try to rebuild job info from existing jobs

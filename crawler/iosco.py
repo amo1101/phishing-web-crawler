@@ -15,7 +15,7 @@ def fetch_iosco_csv(
     start_date: Optional[date],
     end_date: Optional[date],
     *,
-    nca_id: int = 64,
+    nca_id: str = "",
     subsection: str = "main",
     timeout: int = 60
 ) -> Path:
@@ -28,7 +28,9 @@ def fetch_iosco_csv(
     out_path = csv_root / csv_name
 
     base_url = "https://www.iosco.org/i-scan/?export-to-csv"
-    params = {"SUBSECTION": subsection, "NCA_ID": str(nca_id)}
+    params = {"SUBSECTION": subsection}
+    if nca_id != "":
+        params["NCA_ID"] = nca_id
     if start_date and end_date:
         params["ValidationDateStart"] = start_date.isoformat()
         params["ValidationDateEnd"]   = end_date.isoformat()
