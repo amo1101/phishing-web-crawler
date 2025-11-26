@@ -13,7 +13,8 @@ def resolve_host(host: str) -> bool:
     try:
         socket.getaddrinfo(host, None)
         return True
-    except socket.gaierror:
+    except Exception as e:
+        log.warning("Skip, DNS resolution failed for host: %s, exception: %s", host, str(e))
         return False
 
 def probe_url(url: str, timeout: int) -> Tuple[str, str]:
