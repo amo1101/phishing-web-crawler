@@ -32,7 +32,7 @@ def download_csv(csv_dir: Path):
         csv_dir.mkdir(exist_ok=True)
 
     #download IOSCO file
-    ioscoCSV = "iosco" + date.today() + ".csv"
+    ioscoCSV = "iosco" + date.today().isoformat() + ".csv"
     ioscoCSVPath = Path(csv_dir, ioscoCSV)
 
     #does the file already exist?
@@ -56,6 +56,7 @@ def download_csv(csv_dir: Path):
 # https://developers.google.com/safe-browsing/v4/get-started
 dotenv.load_dotenv()
 GOOGLE_API_KEY = os.getenv('GOOGLE_SAFEBROWSING_API_KEY')
+#print(f"GOOGLE_API_KEY: {GOOGLE_API_KEY}")
 API_URL = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_API_KEY}"
 
 parser = argparse.ArgumentParser()
@@ -63,24 +64,29 @@ parser.add_argument("--csv", help="path to CSV file to analyse, if not provided,
 parser.add_argument("--data_dir", help="output directory", default="data-dir")
 parser.add_argument("--regulators", help="CSV file of regulator domains")
 args = parser.parse_args()
-csv_path = args.csv
 
 today = date.today()
+
 #main output dir
-data_dir = args.data_dir
+data_dir = Path.cwd().joinpath(args.data_dir)
+# create the data directory if it is missing
+if data_dir.is_dir():
+    pass
+else:
+    data_dir.mkdir(exist_ok=True)
 
  # use the same folder as the csv file
-if csv_path == "":
+if args.csv == "":
     newDirPath = Path(data_dir, today.isoformat())
-    csv_path = download_csv(newDirPath)
+    args.csv = download_csv(newDirPath)
 else:
-    newDirPath = Path(csv_path).parent
+    newDirPath = Path(args.csv).parent
 
-if csv_path == "":
+if args.csv == "":
     print('IOSCO csv file not downloaded!')
     sys.exit()
 
-newDirName = Path(csv_path).stem    # use csv file name as prefix
+newDirName = Path(args.csv).stem    # use csv file name as prefix
 dateFragment = today.isoformat()
 
 #dataPath = Path.cwd().joinpath(data_dir)
