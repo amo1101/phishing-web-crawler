@@ -114,7 +114,7 @@ logger.info("Starting safe browsing processing for " + dateFragment + "...")
 
 
 #comment out this to disable the test data size limit and process all data
-testDataSize = 100
+#testDataSize = 100
 
 if 'testDataSize' in globals():
     print("Test Data Size is enabled")

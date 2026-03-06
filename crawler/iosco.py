@@ -23,8 +23,7 @@ def fetch_iosco_csv(
     if start_date and end_date:
         csv_name = f"iosco_export_{start_date.isoformat()}_to_{end_date.isoformat()}.csv"
     else:
-        from datetime import date as d
-        csv_name = f"iosco_export_all_{d.today().isoformat()}.csv"
+        csv_name = f"iosco_export_all_{date.today().isoformat()}.csv"
     out_path = csv_root / csv_name
 
     base_url = "https://www.iosco.org/i-scan/?export-to-csv"

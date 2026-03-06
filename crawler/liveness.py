@@ -1,6 +1,5 @@
 from __future__ import annotations
 import socket
-import ssl
 import concurrent.futures as cf
 from typing import Tuple, Dict, List
 from urllib.parse import urlsplit

@@ -24,7 +24,7 @@ def run_once(cfg: Config, st: State):
     csv_root = Path(cfg["iosco"]["csv_root"])
 
     # Testing: force full run
-    last_full = None
+    # last_full = None
     if last_full is None:
         # First full run from base_date
         csv_path = fetch_iosco_csv(
@@ -53,7 +53,7 @@ def run_once(cfg: Config, st: State):
     log.info("CSV path %s", csv_path)
     url_info = parse_csv_url_info(csv_path)
     urls = list(url_info)
-    existing_urls = st.fetch_all_urls()
+    existing_urls = st.fetch_all_urls() # TODO: create index on url and check one by one
     log.info("Parsed %d URLs, existing URLs: %d", len(urls), len(existing_urls))
     new_urls = list(set(urls) - set(existing_urls))
     log.info("New urls to crawl %d", len(new_urls))
@@ -82,7 +82,7 @@ def run_once(cfg: Config, st: State):
         log.info("Enqueued %s job for %s", job_desc, url)
 
 def _next_daily_time(local_hhmm: str) -> float:
-    return 0
+    # return 0
     # returns seconds until next occurrence of local_hhmm
     hh, mm = map(int, local_hhmm.split(":"))
     now = datetime.now()
@@ -103,8 +103,7 @@ def run_loop(cfg: Config, st: State):
             run_once(cfg, st)
 
             # Sleep a short period before recalculating
-            time.sleep(3600)
-
+            time.sleep(60)
         except Exception as e:
             log.error('An exception occurred: %s', str(e))
             traceback.print_exc()

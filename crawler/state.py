@@ -51,8 +51,7 @@ class State:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
         # Ensure schema exists in the creating thread
-        conn = self._conn()
-        self._init_db(conn)
+        self._conn()
         log.info("SQLite state initialized at %s", self.db_path)
 
     def _conn(self) -> sqlite3.Connection:
@@ -69,9 +68,8 @@ class State:
             conn.execute("PRAGMA foreign_keys = ON;")
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous = NORMAL;")
-            self._local.conn = conn
-            # Optionally, ensure schema (idempotent)
             self._init_db(conn)
+            self._local.conn = conn
         return conn
 
     @property

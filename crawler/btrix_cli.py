@@ -16,6 +16,10 @@ class BrowsertrixClient:
         self.headers: Dict[str, str] = {}
         log.info("BrowsertrixClient initialized: base=%s", self.base)
 
+    @property
+    def org_id(self):
+        return self.org_id
+
     def _login(self) -> None:
         """Authenticate and store bearer token."""
         login_url = f"{self.base}/api/auth/jwt/login"
@@ -57,10 +61,11 @@ class BrowsertrixClient:
 
     def create_job(self, url: str,  job_desc: str, job_setting: Dict) -> str:
         """Create and start a crawl job for the given URL.
-        If it is facebook.com, twitter.com, instagram.com, linkedin.com, pinterest.com,
-        play.google.com
-        tiktok.com, youtube.com, only crawl the page.
-        TODO: we need special handling to login first with browser profile
+        Crawl scope default to prefix, but only for following URLs, use page scope:
+        1) facebook.com, twitter.com, instagram.com, linkedin.com,
+           pinterest.com, play.google.com, tiktok.com, youtube.com.
+        2) URLs with parameters.
+        TODO: for pages that requires login, we basically cannot crawl, not sure whether Browser Profile could work around it or not.
         """
         scope = "prefix"
         if re.search(r"https?://(www\.)?(facebook|twitter|instagram|linkedin|pinterest|tiktok|youtube|play.google)\.com", url):
@@ -102,8 +107,8 @@ class BrowsertrixClient:
             "RUNNING": "RUNNING",
             "COMPLETE": "FINISHED",
             "FAILED": "FAILED",
-            "STOPPED_BY_USER": "FINISHED",
-            "CANCELED": "FINISHED",
+            "STOPPED_BY_USER": "FAILED",
+            "CANCELED": "FAILED",
             "WAITING": "RUNNING",
             "STARTING": "RUNNING"
         }
@@ -111,7 +116,7 @@ class BrowsertrixClient:
 
     def get_job_status(self, job_name: str) -> str:
         """
-        Get the status of a crawl job by name.
+        Get the status of the lastest crawl with crawlconfig specified by job_name
         """
         job = self.list_crawlconfigs(cid=job_name)
         if not job:
