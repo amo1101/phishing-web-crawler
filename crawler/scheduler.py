@@ -53,9 +53,7 @@ def run_once(cfg: Config, st: State):
     log.info("CSV path %s", csv_path)
     url_info = parse_csv_url_info(csv_path)
     urls = list(url_info)
-    existing_urls = st.fetch_all_urls() # TODO: create index on url and check one by one
-    log.info("Parsed %d URLs, existing URLs: %d", len(urls), len(existing_urls))
-    new_urls = list(set(urls) - set(existing_urls))
+    new_urls = [url for url in urls if not st.check_url_exists(url)]
     log.info("New urls to crawl %d", len(new_urls))
 
     # 3) URL liveness check

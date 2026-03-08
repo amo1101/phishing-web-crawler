@@ -244,6 +244,14 @@ class State:
             out.append(r[0])
         return out
 
+    def check_url_exists(self, url: str) -> bool:
+        """Check if a URL already exists in the jobs table."""
+        row = self.conn.execute(
+            "SELECT 1 FROM jobs WHERE url=? LIMIT 1",
+            (url,)
+        ).fetchone()
+        return row is not None
+
     def add_nca(self, nca_id: int, nca_jurisdiction: str, nca_name: str):
         """Add a national component authority."""
         cur = self.conn.cursor()

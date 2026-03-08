@@ -163,7 +163,6 @@ regulatorDomainsList = list(regulators_df.iloc[ :, 0])
 logger.info(f"{len(regulatorDomainsList)} regulator domains found")
 
 # get URLs from all relevant fields
-
 def parseURLField(urlField: str) -> list:
     #urls = extractor.find_urls(urlField)
     return extractor.find_urls(urlField)
@@ -430,7 +429,7 @@ for item in uniqueRawURLInstancesList:
         fbPhotoCount += 1
     if item.startswith("https://www.facebook.com/share"):
         fbShareCount += 1
-        
+
 logger.info(f"Number of unique URL instances starting with https://www.facebook.com {fbCount}")
 logger.info(f"Number of unique URL instances starting with https://www.facebook.com/profile {fbProfileCount}")
 logger.info(f"Number of unique URL instances starting with https://www.facebook.com/ads {fbAdsCount}")
