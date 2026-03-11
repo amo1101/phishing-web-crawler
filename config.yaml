@@ -10,8 +10,7 @@ iosco:
 # Scheduling
 schedule:
   base_date: "2025-09-01"
-  daily_run_time: "02:00"     # local time for the daily ingestion + orchestration (24h)
-  job_interval_days: 7
+  daily_run_time: "13:00"     # local time for the daily ingestion + orchestration (24h)
 
 queue:
   max_parallel_crawl_jobs: 5
@@ -31,10 +30,11 @@ browsertrix:
   username: "admin@example.com"
   password: "PASSWORD!"
   crawler_setting:
-    max_time: 3600
-    max_pages: 20000
-    max_size: 3221225472
-
+    max_time: 86400  # max crawl time in seconds
+    max_size: 10737418240 # max crawl size in bytes
+    # crontab format frequency: min, hour, dom, mon, dow; e.g, "0 0 * * 1" run every Monday 00:00;
+    # run once if not specified
+    frequency: ""
 # Dead-site acquisition
 wb_downloader:
   output_dir: "/home/uowadmin/iosco/data/wayback"

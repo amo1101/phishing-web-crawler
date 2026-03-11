@@ -71,9 +71,9 @@ class JobQueueWorker:
         job_names are no longer RUNNING."""
         running = self.state.list_running_jobs()
         for job in running:
-            job_names = job.get("job_name")
+            job_name = job.get("job_name")
             jtype = job.get("type")
-            status = self._get_job_status(jtype, job_names)
+            status = self._get_job_status(jtype, job_name)
             if status["status"] == 'FINISHED':
                 self.state.mark_finished(job["id"], status["crawl_count"], status["file_count"])
             elif status["status"] == 'FAILED':
@@ -83,7 +83,8 @@ class JobQueueWorker:
                 # still running
                 pass
             else:
-                log.warning("Unknown status: %s", status["status"])
+                log.warning("Unknown status: %s, job name: %s",
+                            status["status"], job_name)
 
     def rebuild_job_info(self) -> List[Dict]:
         """ Rebuild job info from existing jobs in Browsertrix and WBDownloader."""
@@ -135,7 +136,7 @@ class JobQueueWorker:
         #log.info("Purge all crawls from Browsertrix for testing...")
         #self.btrix.purge_all_crawls()
         #self.btrix.purge_all_crawlconfigs()
-    
+
         if self.state.get_last_full_run() is None:
             # try to rebuild job info from existing jobs
             log.info("First run detected, rebuilding job info from existing jobs")

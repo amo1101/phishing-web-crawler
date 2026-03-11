@@ -5,8 +5,6 @@ from typing import Optional
 import logging, requests
 from typing import Dict, List, Tuple, Set
 from pathlib import Path
-import validators
-import urllib
 import urlextract
 import pandas as pd
 from .normalize import normalize_url, registrable_domain
@@ -21,7 +19,7 @@ NCA_URL_COL = "nca_url"
 VALIDATION_DATE_COL = "validation_date"
 URL_COL = "url"
 COMNAME_COL = "commercial_name"
-ADDINFO_COL = "additional_info"
+ADDINFO_COL = "additional_information"
 OTHERURL_COL = "other_urls"
 
 def fetch_iosco_csv(
@@ -74,6 +72,7 @@ def parse_url_field(urlField: str) -> list:
 # tidy up raw URLs
 def tidy_raw_url(rawURL: str) -> str:
     # custom data cleaning for observed errors in IOSCO URL data
+    tidyURL = rawURL
     if tidyURL.startswith("ttps://"):
         tidyURL = "h" + tidyURL
     if tidyURL.startswith("www.https://"):
@@ -87,16 +86,16 @@ def tidy_raw_url(rawURL: str) -> str:
     if tidyURL.startswith("htpps://"):
         tidyURL = "https://" + tidyURL[8:]
     if tidyURL.startswith("https://www.."):
-        tidyURL = "https://www." + tidyURL[13:]  
-    if tidyURL.startswith("pagehttps://"):   
+        tidyURL = "https://www." + tidyURL[13:]
+    if tidyURL.startswith("pagehttps://"):
         tidyURL = tidyURL[4:]
-    if tidyURL.startswith("pageshttps://"):   
+    if tidyURL.startswith("pageshttps://"):
         tidyURL = tidyURL[5:]
-    if tidyURL.startswith("websitehttps://"):   
+    if tidyURL.startswith("websitehttps://"):
         tidyURL = tidyURL[7:]
-    if tidyURL.startswith("websiteshttps://"):   
+    if tidyURL.startswith("websiteshttps://"):
         tidyURL = tidyURL[8:]
-    if tidyURL.startswith("andhttps://"):   
+    if tidyURL.startswith("andhttps://"):
         tidyURL = tidyURL[3:]
     return normalize_url(tidyURL)
 
@@ -132,14 +131,14 @@ def parse_csv_url_info(csv_path: Path) -> map[str, Tuple[str, str, str, str]]:
     Return (url, nca_id, nca_jurisdiction, nca_name, validation_date)"""
     urls: map[str, Tuple[int, str, str, str]] = {}
     try:
-        csv_df = pd.read_csv(csv_path)
+        csv_df = pd.read_csv(csv_path,dtype=str,low_memory=False)
         for row in csv_df.itertuples():
             id = getattr(row, ID_COL)
             if id in manual_fixes:
                 url_set = manual_fixes[id]
             else:
                 url_set = parse_url_cols(row)
-            nca_id = getattr(row, NCA_ID_COL)
+            nca_id = int(getattr(row, NCA_ID_COL))
             nca_jurisdiction = getattr(row, NCA_JURIS_COL)
             nca_name = getattr(row, NCA_NAME_COL)
             validation_date = getattr(row, VALIDATION_DATE_COL)
@@ -150,5 +149,6 @@ def parse_csv_url_info(csv_path: Path) -> map[str, Tuple[str, str, str, str]]:
     except Exception:
         log.exception("Failed to read CSV: %s", csv_path)
         raise
-  
+
+    log.info(f'Total urls parsed ({len(urls)}):')
     return urls

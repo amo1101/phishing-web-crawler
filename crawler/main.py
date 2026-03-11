@@ -32,7 +32,6 @@ def main():
     finally:
         log.info('Quiting the crawler...')
         worker.stop()
-        t.join()
 
 if __name__ == "__main__":
     main()

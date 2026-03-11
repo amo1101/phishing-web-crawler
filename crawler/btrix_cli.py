@@ -16,10 +16,6 @@ class BrowsertrixClient:
         self.headers: Dict[str, str] = {}
         log.info("BrowsertrixClient initialized: base=%s", self.base)
 
-    @property
-    def org_id(self):
-        return self.org_id
-
     def _login(self) -> None:
         """Authenticate and store bearer token."""
         login_url = f"{self.base}/api/auth/jwt/login"
@@ -61,7 +57,7 @@ class BrowsertrixClient:
 
     def create_job(self, url: str,  job_desc: str, job_setting: Dict) -> str:
         """Create and start a crawl job for the given URL.
-        Crawl scope default to prefix, but only for following URLs, use page scope:
+        Crawl scope default to prefix, but for the following URLs, use page scope:
         1) facebook.com, twitter.com, instagram.com, linkedin.com,
            pinterest.com, play.google.com, tiktok.com, youtube.com.
         2) URLs with parameters.
@@ -78,10 +74,12 @@ class BrowsertrixClient:
             log.debug("Setting scope to 'page' for URL with params: %s", url)
 
         crawl_setting = {
-            "schedule": "", # TBD
             "runNow": True,
             "name": f"crawl-{url}",
             "description": job_desc,
+            "schedule": job_setting['frequency'],
+            "crawlTimeout": job_setting['max_time'],
+            "maxCrawlSize": job_setting['max_size'],
             "config": {
                 "seeds": [{"url": url}],
                 "scopeType": scope,
