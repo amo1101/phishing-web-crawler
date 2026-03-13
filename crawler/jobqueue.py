@@ -45,7 +45,7 @@ class JobQueueWorker:
         if jtype == LIVE_CRAWL:
             log.info("LIVE_CRAWL url=%s", url)
             job_name = self.btrix.create_job(url, job_desc, self.cfg["browsertrix"]["crawler_setting"])
-            job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/{self.btrix.org_id}/workflows/{job_name}"
+            job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/{self.btrix.org_slug}/workflows/{job_name}"
 
         elif jtype == WAYBACK_DOWNLOAD:
             log.info("WAYBACK_CREATE url=%s", url)
@@ -93,7 +93,7 @@ class JobQueueWorker:
             nca_id = int(desc.split(",")[0].split(":")[1]) if desc else 0
             validation_date = desc.split(",")[1].split(":")[1] if desc else ""
             job_name=job["job_name"]
-            job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/{self.btrix.org_id}/workflows/{job_name}"
+            job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/{self.btrix.org_slug}/workflows/{job_name}"
             self.state.add_history_job(
                 job_type=LIVE_CRAWL,
                 job_name=job_name,

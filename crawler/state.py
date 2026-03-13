@@ -183,6 +183,14 @@ class State:
             (now, job_id)
         )
 
+    def mark_running_by_job_name(self, job_name: str):
+        """Mark a job as RUNNING."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET status='RUNNING', updated_at=? WHERE job_name=?",
+            (now, job_name)
+        )
+
     def mark_finished(self, job_id: int, crawl_count: int, file_count: int):
         """Mark a job as FINISHED."""
         now = datetime.now(timezone.utc).isoformat()

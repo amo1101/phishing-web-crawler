@@ -8,13 +8,34 @@ log = logging.getLogger(__name__)
 
 class BrowsertrixClient:
     """refer to https://docs.browsertrix.com/api/"""
-    def __init__(self, base_url: str, username: str, password: str):
+    def __init__(self, base_url: str, username: str, password: str, org: str = "", collection: str = ""):
         self.base = base_url.rstrip("/")
         self.auth = (username, password)
+        self.org = org
         self.org_id: str = ""
+        self.org_slug: str = ""
+        self.collection = collection
+        self.collection_id: str = ""
         self.token: Optional[str] = None
         self.headers: Dict[str, str] = {}
         log.info("BrowsertrixClient initialized: base=%s", self.base)
+
+    def _get_collection_id(self):
+        """
+        get collection id for the given collection name.
+        """
+        path = f"/api/orgs/{self.org_id}/collections?name={requests.utils.quote(self.collection)}"
+        try:
+            resp = requests.get(path, headers=self.headers, timeout=15)
+            body = resp.json()
+        except Exception as e:
+            log.error("Failed to get collections: %s", str(e))
+            return
+
+        items = body.get("items")
+        if items is None:
+            return
+        self.collection_id = items[0].get("id", "")
 
     def _login(self) -> None:
         """Authenticate and store bearer token."""
@@ -31,8 +52,11 @@ class BrowsertrixClient:
         if not token:
             raise RuntimeError("Login succeeded but no access token found in response")
         self.token = token
-        self.org_id = data.get("user_info").get("orgs")[0].get("id") # use only one organization
+        org_info = next((org for org in data.get("user_info").get("orgs") if org.get("name") == self.org), None)
+        self.org_id = org_info.get("id") if org_info else None
+        self.org_slug = org_info.get("slug") if org_info else None
         self.headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        self._get_collection_id()
         log.info("Authenticated, token acquired")
 
     def _request(self, method: str, path: str, retry: bool = True, **kwargs) -> requests.Response:
@@ -80,6 +104,7 @@ class BrowsertrixClient:
             "schedule": job_setting['frequency'],
             "crawlTimeout": job_setting['max_time'],
             "maxCrawlSize": job_setting['max_size'],
+            "autoAddCollections": [self.collection_id],
             "config": {
                 "seeds": [{"url": url}],
                 "scopeType": scope,
@@ -155,6 +180,17 @@ class BrowsertrixClient:
             self._login()
         path = f"/api/orgs/{self.org_id}/crawlconfigs/"
         resp = self._request("post", path, json=crawl_config)
+        return resp.json()
+
+    def update_crawlconfig(self, cid: str, crawl_config: Dict) -> Dict:
+        """
+        Update an existing crawl config for the given organization.
+        """
+        # ensure authenticated
+        if not self.token:
+            self._login()
+        path = f"/api/orgs/{self.org_id}/crawlconfigs/{cid}"
+        resp = self._request("patch", path, json=crawl_config)
         return resp.json()
 
     def del_crawlconfig(self, cid: str) -> Dict:
@@ -233,3 +269,23 @@ class BrowsertrixClient:
         configs = self.list_crawlconfigs()
         for config in configs:
             self.del_crawlconfig(config["id"])
+
+    def add_crawl_to_collection(self, crawl_ids: List[str]) -> Dict:
+        """
+        Add a crawls to a collection
+        """
+        if not self.token:
+            self._login()
+        path = f"/api/orgs/{self.org_id}/collections/{self.collection_id}/add"
+        resp = self._request("post", path, json={"crawlIds": crawl_ids})
+        return resp.json()
+
+    def resume_crawl(self, crawl_id: str) -> Dict:
+        """
+        Resume cancelled crawls
+        """
+        if not self.token:
+            self._login()
+        path = f"/api/orgs/{self.org_id}/crawls/{crawl_id}/resume"
+        resp = self._request("post", path)
+        return resp.json()
