@@ -24,7 +24,7 @@ def run_once(cfg: Config, st: State):
     csv_root = Path(cfg["iosco"]["csv_root"])
 
     # Testing: force full run
-    last_full = None
+    #last_full = None
     if last_full is None:
         # First full run from base_date
         csv_path = fetch_iosco_csv(
@@ -81,6 +81,7 @@ def run_once(cfg: Config, st: State):
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
+    #return 0
     hh, mm = map(int, local_hhmm.split(":"))
     now = datetime.now()
     target = datetime.combine(now.date(), dtime(hh, mm))

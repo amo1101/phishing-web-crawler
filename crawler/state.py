@@ -163,7 +163,7 @@ class State:
     def fetch_next_pending(self, job_type: str, limit: int) -> list[dict]:
         """ Fetch next PENDING jobs up to limit, ordered by priority and created_at."""
         rows = self.conn.execute(
-            """SELECT id,type,url,nca_id,validation_date FROM jobs
+            """SELECT id,job_name,type,url,nca_id,validation_date FROM jobs
                WHERE status='PENDING' and type=?
                ORDER BY priority ASC, created_at ASC
                LIMIT ?""", (job_type, limit)
@@ -171,7 +171,7 @@ class State:
         out = []
         for r in rows:
             out.append({
-                "id": r[0], "type": r[1], "url": r[2], "nca_id": r[3], "validation_date": r[4]
+                "id": r[0], "job_name": r[1], "type": r[2], "url": r[3], "nca_id": r[4], "validation_date": r[5]
             })
         return out
 
@@ -181,14 +181,6 @@ class State:
         self.conn.execute(
             "UPDATE jobs SET status='RUNNING', updated_at=? WHERE id=?",
             (now, job_id)
-        )
-
-    def mark_running_by_job_name(self, job_name: str):
-        """Mark a job as RUNNING."""
-        now = datetime.now(timezone.utc).isoformat()
-        self.conn.execute(
-            "UPDATE jobs SET status='RUNNING', updated_at=? WHERE job_name=?",
-            (now, job_name)
         )
 
     def mark_finished(self, job_id: int, crawl_count: int, file_count: int):
@@ -216,6 +208,22 @@ class State:
                 "UPDATE jobs SET status='PENDING', attempts=?, updated_at=? WHERE id=?",
                 (attempts, now, job_id)
             )
+
+    def mark_status(self, job_id: int, status: str):
+        """Mark a job as the specified status."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET status=?, updated_at=? WHERE id=?",
+            (status, now, job_id)
+        )
+
+    def mark_status_by_job_name(self, job_name: str, status: str):
+        """Mark a job as the specified status."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            "UPDATE jobs SET status=?, updated_at=? WHERE job_name=?",
+            (status, now, job_name)
+        )
 
     def count_running_jobs(self, job_type: str) -> int:
         """Count the number of RUNNING jobs."""

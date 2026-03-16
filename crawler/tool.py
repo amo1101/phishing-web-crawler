@@ -2,13 +2,14 @@ from __future__ import annotations
 import argparse
 import logging, threading
 from typing import Dict
-import btrix_cli
+from .logging_setup import setup_logging
+from .btrix_cli import BrowsertrixClient
 from .config import Config
 from .state import State
 
 
 def update_crawl_configs(cfg: Config):
-    btrix = btrix_cli.BrowsertrixClient(
+    btrix = BrowsertrixClient(
         base_url=cfg["browsertrix"]["base_url"],
         username=cfg["browsertrix"]["username"],
         password=cfg["browsertrix"]["password"],
@@ -24,7 +25,7 @@ def update_crawl_configs(cfg: Config):
         btrix.update_crawlconfig(cid, config_update)
 
 def add_crawl_to_collection(cfg: Config):
-    btrix = btrix_cli.BrowsertrixClient(
+    btrix = BrowsertrixClient(
         base_url=cfg["browsertrix"]["base_url"],
         username=cfg["browsertrix"]["username"],
         password=cfg["browsertrix"]["password"],
@@ -36,10 +37,10 @@ def add_crawl_to_collection(cfg: Config):
     crawlIds = [c["id"] for c in crawls]
     btrix.add_crawl_to_collection(crawlIds)
 
-# resume all cancelled or failed or stopped crawls
-# you may want to resume crawls after adjust resources for crawler pods
-def resume_all_crawls(cfg: Config):
-    btrix = btrix_cli.BrowsertrixClient(
+# resume all cancelled or failed, canceled or stopped crawls
+# you may want to resume crawls after adjust resources for k8s crawler pods
+def resume_crawl_jobs(cfg: Config, remove_last_crawl: bool = False):
+    btrix = BrowsertrixClient(
         base_url=cfg["browsertrix"]["base_url"],
         username=cfg["browsertrix"]["username"],
         password=cfg["browsertrix"]["password"],
@@ -47,27 +48,35 @@ def resume_all_crawls(cfg: Config):
         collection=cfg["browsertrix"]["collection"]
     )
 
+    crawls = []
     state = State(cfg["state_db"])
-    crawls = btrix.list_crawls()
-    for crawl in crawls:
-        if crawl["state"] in ["canceled","failed","stopped_by_user"]:
-            btrix.resume_crawl(crawl["id"])
-            # update state in db to running so that it can be tracked in jobqueue worker
-            state.mark_running_by_job_name(crawl["cid"])
+    configs = btrix.list_crawlconfigs()
+    for config in configs:
+        if config["lastCrawlState"] in ["canceled","failed","stopped_by_user"]:
+            # update state in db to pending so that it can be scheduled in jobqueue worker again
+            state.mark_status_by_job_name(config["id"], 'PENDING')
+            if remove_last_crawl:
+                crawls.append(config["lastCrawlId"])
+    if remove_last_crawl and len(crawls) > 0:
+        btrix.purge_all_crawls(crawls)
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", required=True, help="Path to config.yaml")
-    ap.add_argument("--command", "-c", required=True, help="Command to execute")
+    ap.add_argument("--config", "-c", required=True, help="Path to config.yaml")
+    ap.add_argument("--command", "-e", required=True, help="Command to execute")
     args = ap.parse_args()
 
     cfg = Config.load(args.config)
+    setup_logging(cfg.data)
+    log = logging.getLogger(__name__)
+    log.info("Starting tool with config: %s", args.config)
+
     if args.command == "update_crawl_configs":
         update_crawl_configs(cfg)
     elif args.command == "add_crawl_to_collection":
         add_crawl_to_collection(cfg)
-    elif args.command == "resume_all_crawls":
-        resume_all_crawls(cfg)
+    elif args.command == "resume_crawl_jobs":
+        resume_crawl_jobs(cfg)
     else:
         print(f"Unknown command: {args.command}")
 

@@ -15,7 +15,7 @@ schedule:
 queue:
   max_parallel_crawl_jobs: 5
   max_parallel_download_jobs: 1
-  max_retries: 3 # now applies only to wayback download jobs
+  max_retries: 3 # now applies only to wayback download jobs, retry for browsertrix crawl jobs is handled via tool.py manually
   reconcile_interval_seconds: 30 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
 
 # Liveness
@@ -29,7 +29,7 @@ browsertrix:
   base_url: "http://localhost:30870"
   username: "admin@example.com"
   password: "PASSWORD!"
-  org: "My organization"
+  org: "My Organization"
   collection: "iosco"
   crawler_setting:
     max_time: 86400  # max crawl time in seconds

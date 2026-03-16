@@ -3,6 +3,7 @@ import os, time, re
 from pathlib import Path
 from typing import List, Dict, Optional
 import logging, requests
+import traceback
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class BrowsertrixClient:
         """
         get collection id for the given collection name.
         """
-        path = f"/api/orgs/{self.org_id}/collections?name={requests.utils.quote(self.collection)}"
+        path = f"{self.base}/api/orgs/{self.org_id}/collections?name={requests.utils.quote(self.collection)}"
         try:
             resp = requests.get(path, headers=self.headers, timeout=15)
             body = resp.json()
@@ -52,12 +53,14 @@ class BrowsertrixClient:
         if not token:
             raise RuntimeError("Login succeeded but no access token found in response")
         self.token = token
+        log.info("Authenticated, token acquired")
+        log.info("self.org %s, self.collection:%s", self.org, self.collection)
         org_info = next((org for org in data.get("user_info").get("orgs") if org.get("name") == self.org), None)
         self.org_id = org_info.get("id") if org_info else None
         self.org_slug = org_info.get("slug") if org_info else None
         self.headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         self._get_collection_id()
-        log.info("Authenticated, token acquired")
+        log.info("org_id %s, org_slug %s, collection_id %s", self.org_id, self.org_slug, self.collection_id)
 
     def _request(self, method: str, path: str, retry: bool = True, **kwargs) -> requests.Response:
         """Make request to API, auto-login on 401 and retry once."""
@@ -124,14 +127,24 @@ class BrowsertrixClient:
             log.error("Failed to create crawl job for %s: %s", url, str(e))
         return job_name
 
+    def resume_job(self, job_name: str) -> Dict:
+        """
+        Resume a job with given job_name
+        """
+        if not self.token:
+            self._login()
+        path = f"/api/orgs/{self.org_id}/crawlconfigs/{job_name}/run"
+        resp = self._request("post", path)
+        return resp.json()
+
     def _convert_status(self, state: str) -> str:
         """Convert Browsertrix crawl state to job status."""
         mapping = {
             "RUNNING": "RUNNING",
             "COMPLETE": "FINISHED",
             "FAILED": "FAILED",
-            "STOPPED_BY_USER": "FAILED",
-            "CANCELED": "FAILED",
+            "STOPPED_BY_USER": "STOPPED",
+            "CANCELED": "CANCELED",
             "WAITING": "RUNNING",
             "STARTING": "RUNNING"
         }
@@ -141,13 +154,13 @@ class BrowsertrixClient:
         """
         Get the status of the lastest crawl with crawlconfig specified by job_name
         """
-        job = self.list_crawlconfigs(cid=job_name)
+        job = self.list_crawlconfig(cid=job_name)
         if not job:
             log.error("Crawl job not found: %s", job_name)
             return {"status":"FAILED"}
-        state = job[0].get("lastCrawlState", "UNKNOWN")
-        crawl_count = job[0].get("crawlSuccessfulCount", 0)
-        crawl_pages = job[0].get("lastCrawlStats").get("done")
+        state = job.get("lastCrawlState", "UNKNOWN")
+        crawl_count = job.get("crawlSuccessfulCount", 0)
+        crawl_pages = job.get("lastCrawlStats").get("done")
         return {"status":self._convert_status(state),
                 "crawl_count": crawl_count,
                 "file_count":crawl_pages}
@@ -158,17 +171,22 @@ class BrowsertrixClient:
         """
         jobs = []
         try:
+            log.info("Rebuilding browsertrix job info...")
             configs = self.list_crawlconfigs()
+            log.info("Retrieved %d crawl configs", len(configs))
             for config in configs:
                 jobs.append({"job_name": config.get("id"),
                              "desc": config.get("description"),
                              "url": config.get("firstSeed"),
-                             "status": self._convert_status(config.get("lastCrawlState")),
+                             "status": self._convert_status(config.get("lastCrawlState") \
+                                                            if config.get("lastCrawlState") else "UNKNOWN"),
                              "crawl_count": config.get("crawlSuccessfulCount", 0),
-                             "file_count": config.get("lastCrawlStats").get("done")})
-            log.debug("Retrieved %d crawl configs", len(jobs))
+                             "file_count": config.get("lastCrawlStats").get("done") \
+                                if config.get("lastCrawlStats") else 0})
+            log.debug("Rebuilding browsertrix job info done")
         except Exception as e:
-            log.error("Failed to retrieve crawl jobs: %s", str(e))
+            log.error("Failed to retrieve crawl jobs: %s, config: %s", str(e), config)
+            log.error("Traceback: %s", traceback.format_exc())
         return jobs
 
     def add_crawlconfig(self, crawl_config: Dict) -> Dict:
@@ -204,60 +222,91 @@ class BrowsertrixClient:
         resp = self._request("delete", path)
         return resp.json()
 
-    def list_crawlconfigs(self, cid: str = "") -> List[Dict]:
+    def list_crawlconfig(self, cid: str = ""):
+        """
+        List a crawl config
+        """
+        if not self.token:
+            self._login()
+
+        path = f"/api/orgs/{self.org_id}/crawlconfigs/{cid}"
+        try:
+            resp = self._request("get", path)
+            return resp.json()
+        except Exception as e:
+            log.error("Failed to list crawl configs: %s", str(e))
+            return None
+
+    def list_crawl(self, crawl_id: str = ""):
+        """
+        List a crawl
+        """
+        if not self.token:
+            self._login()
+
+        path = f"/api/orgs/{self.org_id}/crawls/{crawl_id}"
+        try:
+            resp = self._request("get", path)
+            return resp.json()
+        except Exception as e:
+            log.error("Failed to list crawl: %s", str(e))
+            return None
+
+    def list_crawlconfigs(self) -> List[Dict]:
         """
         List crawl configs for an organization
         """
         if not self.token:
             self._login()
 
-        path = f"/api/orgs/{self.org_id}/crawlconfigs"
-        if cid != "":
-            path = f"/api/orgs/{self.org_id}/crawlconfigs/{cid}"
+        configs = []
         try:
-            resp = self._request("get", path)
-            body = resp.json()
+            page = 1
+            while True:
+                path = f"/api/orgs/{self.org_id}/crawlconfigs?page={page}"
+                resp = self._request("get", path)
+                body = resp.json()
+                if not body.get("items"):
+                    break
+                configs.extend(body["items"])
+                page += 1
         except Exception as e:
             log.error("Failed to list crawl configs: %s", str(e))
             return []
 
-        if cid != "":
-            return [body]
-        items = body.get("items")
-        if items is None:
-            return []
-        return items
+        return configs
 
-    def list_crawls(self, crawl_id: str = "") -> List[Dict]:
+    def list_crawls(self) -> List[Dict]:
         """
         List crawls for an organization
         """
         if not self.token:
             self._login()
 
-        path = f"/api/orgs/{self.org_id}/crawls"
-        if crawl_id != "":
-            path = f"/api/orgs/{self.org_id}/crawls/{crawl_id}"
+        crawls = []
         try:
-            resp = self._request("get", path)
-            body = resp.json()
+            page = 1
+            while True:
+                path = f"/api/orgs/{self.org_id}/crawls?page={page}"
+                resp = self._request("get", path)
+                body = resp.json()
+                if not body.get("items"):
+                    break
+                crawls.extend(body["items"])
+                page += 1
         except Exception as e:
             log.error("Failed to list crawls: %s", str(e))
             return []
 
-        if crawl_id != "":
-            return [body]
-        items = body.get("items")
-        if items is None:
-            return []
-        return items
+        return crawls
 
-    def purge_all_crawls(self):
+    def purge_all_crawls(self, crawl_ids: list[str] = []):
         """
-        Remove all crawls, only for test
+        Remove all crawls
         """
-        crawls = self.list_crawls()
-        crawl_ids = [c["id"] for c in crawls]
+        if not crawl_ids:
+            crawls = self.list_crawls()
+            crawl_ids = [c["id"] for c in crawls]
         if len(crawl_ids) > 0:
             path = f"/api/orgs/{self.org_id}/all-crawls/delete"
             self._request("post", path, json={"crawl_ids": crawl_ids})
@@ -278,14 +327,4 @@ class BrowsertrixClient:
             self._login()
         path = f"/api/orgs/{self.org_id}/collections/{self.collection_id}/add"
         resp = self._request("post", path, json={"crawlIds": crawl_ids})
-        return resp.json()
-
-    def resume_crawl(self, crawl_id: str) -> Dict:
-        """
-        Resume cancelled crawls
-        """
-        if not self.token:
-            self._login()
-        path = f"/api/orgs/{self.org_id}/crawls/{crawl_id}/resume"
-        resp = self._request("post", path)
         return resp.json()

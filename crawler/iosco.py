@@ -146,6 +146,9 @@ def parse_csv_url_info(csv_path: Path) -> map[str, Tuple[str, str, str, str]]:
             for url in url_set:
                 tidyURL = tidy_raw_url(url)
                 urls[tidyURL] = attrs
+    except pd.errors.EmptyDataError:
+        log.warning("CSV file is empty: %s", csv_path)
+        return {}
     except Exception:
         log.exception("Failed to read CSV: %s", csv_path)
         raise

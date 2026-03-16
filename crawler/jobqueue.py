@@ -24,6 +24,8 @@ class JobQueueWorker:
             base_url=cfg["browsertrix"]["base_url"],
             username=cfg["browsertrix"]["username"],
             password=cfg["browsertrix"]["password"],
+            org=cfg["browsertrix"]["org"],
+            collection=cfg["browsertrix"]["collection"]
         )
         self.wb_downloader = WBDownloader(
             output_base=cfg["wb_downloader"]["output_dir"],
@@ -44,7 +46,12 @@ class JobQueueWorker:
 
         if jtype == LIVE_CRAWL:
             log.info("LIVE_CRAWL url=%s", url)
-            job_name = self.btrix.create_job(url, job_desc, self.cfg["browsertrix"]["crawler_setting"])
+            job_name = job["job_name"]
+            if job_name:
+                log.info("Job already has job_name %s, resume it", job["job_name"])
+                self.btrix.resume_job(job_name)
+            else:
+                job_name = self.btrix.create_job(url, job_desc, self.cfg["browsertrix"]["crawler_setting"])
             job_link = f"{self.cfg['browsertrix']['base_url'].rstrip('/')}/orgs/{self.btrix.org_slug}/workflows/{job_name}"
 
         elif jtype == WAYBACK_DOWNLOAD:
@@ -83,7 +90,8 @@ class JobQueueWorker:
                 # still running
                 pass
             else:
-                log.warning("Unknown status: %s, job name: %s",
+                self.state.mark_status(job["id"], status["status"])
+                log.warning("other status: %s, job name: %s",
                             status["status"], job_name)
 
     def rebuild_job_info(self) -> List[Dict]:

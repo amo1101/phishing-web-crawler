@@ -91,6 +91,8 @@
           <option value="RUNNING" {% if filters.status == 'RUNNING' %}selected{% endif %}>RUNNING</option>
           <option value="FINISHED" {% if filters.status == 'FINISHED' %}selected{% endif %}>FINISHED</option>
           <option value="FAILED" {% if filters.status == 'FAILED' %}selected{% endif %}>FAILED</option>
+          <option value="STOPPED" {% if filters.status == 'STOPPED' %}selected{% endif %}>STOPPED</option>
+          <option value="CANCELED" {% if filters.status == 'CANCELED' %}selected{% endif %}>CANCELED</option>
         </select>
       </div>
 
@@ -155,6 +157,8 @@
             'FINISHED':'status-finished',
             'FAILED':'status-failed',
             'PENDING':'status-pending',
+            'STOPPED':'status-stopped',
+            'CANCELED':'status-canceled',
             'UNKNOWN':'text-muted'
           } %}
 
