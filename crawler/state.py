@@ -217,12 +217,12 @@ class State:
             (status, now, job_id)
         )
 
-    def mark_status_by_job_name(self, job_name: str, status: str):
+    def retry_live_crawl_jobs(self):
         """Mark a job as the specified status."""
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "UPDATE jobs SET status=?, updated_at=? WHERE job_name=?",
-            (status, now, job_name)
+            "UPDATE jobs SET status='PENDING', updated_at=? WHERE type='LIVE_CRAWL' and status='FAILED' or status='CANCELED' or status='STOPPED'",
+            (now,)
         )
 
     def count_running_jobs(self, job_type: str) -> int:

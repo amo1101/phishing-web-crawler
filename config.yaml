@@ -39,7 +39,7 @@ browsertrix:
     frequency: ""
 # Dead-site acquisition
 wb_downloader:
-  output_dir: "/home/uowadmin/iosco/data/wayback"
+  output_dir: "/scratch/iosco/wayback"
   concurrency: 3          # how many files to download in parallel for Wayback downloads
 
 # Dashboard

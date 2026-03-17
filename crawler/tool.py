@@ -4,6 +4,7 @@ import logging, threading
 from typing import Dict
 from .logging_setup import setup_logging
 from .btrix_cli import BrowsertrixClient
+from .jobqueue import JobQueueWorker
 from .config import Config
 from .state import State
 
@@ -37,9 +38,20 @@ def add_crawl_to_collection(cfg: Config):
     crawlIds = [c["id"] for c in crawls]
     btrix.add_crawl_to_collection(crawlIds)
 
-# resume all cancelled or failed, canceled or stopped crawls
+# retry all cancelled or failed, canceled or stopped crawls
 # you may want to resume crawls after adjust resources for k8s crawler pods
-def resume_crawl_jobs(cfg: Config, remove_last_crawl: bool = False):
+def retry_crawl_jobs(cfg: Config):
+    state = State(cfg["state_db"])
+    state.retry_live_crawl_jobs()
+
+# Rebuild jobs info from existing jobs in Browsertrix and WBDownloader in case of state db loss
+def rebuild_jobs_info(cfg: Config):
+    state = State(cfg["state_db"])
+    jq = JobQueueWorker(cfg, state)
+    jq.rebuild_job_info()
+
+# Permanently purge all crawls and crawl configs in Browsertrix, use with caution
+def purge_all_crawl_jobs(cfg: Config):
     btrix = BrowsertrixClient(
         base_url=cfg["browsertrix"]["base_url"],
         username=cfg["browsertrix"]["username"],
@@ -47,18 +59,8 @@ def resume_crawl_jobs(cfg: Config, remove_last_crawl: bool = False):
         org=cfg["browsertrix"]["org"],
         collection=cfg["browsertrix"]["collection"]
     )
-
-    crawls = []
-    state = State(cfg["state_db"])
-    configs = btrix.list_crawlconfigs()
-    for config in configs:
-        if config["lastCrawlState"] in ["canceled","failed","stopped_by_user"]:
-            # update state in db to pending so that it can be scheduled in jobqueue worker again
-            state.mark_status_by_job_name(config["id"], 'PENDING')
-            if remove_last_crawl:
-                crawls.append(config["lastCrawlId"])
-    if remove_last_crawl and len(crawls) > 0:
-        btrix.purge_all_crawls(crawls)
+    btrix.purge_all_crawls()
+    btrix.purge_all_crawlconfigs()
 
 def main():
     ap = argparse.ArgumentParser()
@@ -75,8 +77,12 @@ def main():
         update_crawl_configs(cfg)
     elif args.command == "add_crawl_to_collection":
         add_crawl_to_collection(cfg)
-    elif args.command == "resume_crawl_jobs":
-        resume_crawl_jobs(cfg)
+    elif args.command == "retry_crawl_jobs":
+        retry_crawl_jobs(cfg)
+    elif args.command == "rebuild_jobs_info":
+        rebuild_jobs_info(cfg)
+    elif args.command == "purge_all_crawl_jobs":
+        purge_all_crawl_jobs(cfg)
     else:
         print(f"Unknown command: {args.command}")
 
