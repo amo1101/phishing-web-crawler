@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple, Set
 from pathlib import Path
 import urlextract
 import pandas as pd
-from .normalize import normalize_url, registrable_domain
+from .normalize import normalize_url, registrable_domain, url_start_with_domain
 
 log = logging.getLogger(__name__)
 
@@ -101,32 +101,44 @@ def tidy_raw_url(rawURL: str) -> str:
 
 # manual data cleaning fixes
 manual_fixes = {
-    30231: {'https://www.gmtdirect.com', 'https://www.gmtplatform.com'},
-    28662: {'https://panel.billionaire-trade.co.com', 'https://trading.billionaire-trade.co.com'},
-    12828: {'https://secure.capitalgmafx.com', 'https://trade.capitalgmafx.com', 'https://www.marketscfds.com', 'https://secure.marketscfds.com', 'https://ztrade24.com', 'https://secure.ztrade24.com'}
+    30231: ['https://www.gmtdirect.com', 'https://www.gmtplatform.com'],
+    28662: ['https://panel.billionaire-trade.co.com', 'https://trading.billionaire-trade.co.com'],
+    12828: ['https://secure.capitalgmafx.com', 'https://trade.capitalgmafx.com', 'https://www.marketscfds.com', 'https://secure.marketscfds.com', 'https://ztrade24.com', 'https://secure.ztrade24.com']
 }
 
-def parse_url_cols(row) -> set:
-    all_urls = set()
+def parse_url_cols(row) -> list:
+    def unique_by_domain(urls: list) -> list:
+        # de-dup URLs by their registrable domain + path,
+        # to avoid duplicates caused by minor variations (e.g. http vs https, www vs non-www, trailing slash, etc.)
+        seen = set()
+        unique_urls = []
+        for url in urls:
+            u = url_start_with_domain(url)
+            if u not in seen:
+                seen.add(u)
+                unique_urls.append(url)
+        return unique_urls
+
+    all_urls = []
     nca_url = parse_url_field(str(getattr(row, NCA_URL_COL)))
     nca_domain = registrable_domain(nca_url[0]) if nca_url else None
     # url column
-    all_urls.update(parse_url_field(str(getattr(row, URL_COL))))
+    all_urls.extend(parse_url_field(str(getattr(row, URL_COL))))
     #commercial_name column
-    all_urls.update(parse_url_field(str(getattr(row, COMNAME_COL))))
+    all_urls.extend(parse_url_field(str(getattr(row, COMNAME_COL))))
     #addInfoCol column
-    all_urls.update(parse_url_field(str(getattr(row, ADDINFO_COL))))
+    all_urls.extend(parse_url_field(str(getattr(row, ADDINFO_COL))))
     # otherurlCol column, urls are separated by '|'
     otherurls = getattr(row, OTHERURL_COL)
     list_otherurls = str(otherurls).split("|")
     for url in list_otherurls:
-        all_urls.update(parse_url_field(str(url)))
-    # filter out that are under the nca domain, as those are likely to be false positives (e.g. regulator's own website)
+        all_urls.extend(parse_url_field(str(url)))
+    # filter out those are under the nca domain, as those are likely to be false positives (e.g. regulator's own website)
     if nca_domain:
-        all_urls = {url for url in all_urls if registrable_domain(url) != nca_domain}
-    return all_urls
+        all_urls = [url for url in all_urls if registrable_domain(url) != nca_domain]
+    return unique_by_domain(all_urls)
 
-def parse_csv_url_info(csv_path: Path) -> map[str, Tuple[str, str, str, str]]:
+def parse_csv_url_info(csv_path: Path) -> map[str, Tuple[int, str, str, str]]:
     """Parse URLs from the given CSV file.
     Return (url, nca_id, nca_jurisdiction, nca_name, validation_date)"""
     urls: map[str, Tuple[int, str, str, str]] = {}
@@ -135,15 +147,15 @@ def parse_csv_url_info(csv_path: Path) -> map[str, Tuple[str, str, str, str]]:
         for row in csv_df.itertuples():
             id = getattr(row, ID_COL)
             if id in manual_fixes:
-                url_set = manual_fixes[id]
+                url_list = manual_fixes[id]
             else:
-                url_set = parse_url_cols(row)
+                url_list = parse_url_cols(row)
             nca_id = int(getattr(row, NCA_ID_COL))
             nca_jurisdiction = getattr(row, NCA_JURIS_COL)
             nca_name = getattr(row, NCA_NAME_COL)
             validation_date = getattr(row, VALIDATION_DATE_COL)
             attrs = (nca_id, nca_jurisdiction, nca_name, validation_date)
-            for url in url_set:
+            for url in url_list:
                 tidyURL = tidy_raw_url(url)
                 urls[tidyURL] = attrs
     except pd.errors.EmptyDataError:

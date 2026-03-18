@@ -140,13 +140,29 @@ class BrowsertrixClient:
     def _convert_status(self, state: str) -> str:
         """Convert Browsertrix crawl state to job status."""
         mapping = {
+            "PAUSED": "STOPPED",
+            "PAUSED_STORAGE_QUOTA_REACHED": "STOPPED",
+            "PAUSED_TIME_QUOTA_REACHED": "STOPPED",
+            "PAUSED_ORG_READONLY": "STOPPED",
+            "STARTING": "RUNNING",
+            "WAITING_CAPACITY": "RUNNING",
+            "WAITING_ORG_LIMIT": "RUNNING",
+            "WAITING_DEDUPE_INDEX": "RUNNING",
             "RUNNING": "RUNNING",
-            "COMPLETE": "FINISHED",
-            "FAILED": "FAILED",
-            "STOPPED_BY_USER": "STOPPED",
+            "PENDING-WAIT": "RUNNING",
+            "GENERATE-WACZ": "RUNNING",
+            "UPLOADING-WACZ": "RUNNING",
             "CANCELED": "CANCELED",
-            "WAITING": "RUNNING",
-            "STARTING": "RUNNING"
+            "FAILED": "FAILED",
+            "FAILED_NOT_LOGGED_IN": "FAILED",
+            "SKIPPED_STORAGE_QUOTA_REACHED": "STOPPED",
+            "SKIPPED_TIME_QUOTA_REACHED": "STOPPED",
+            "COMPLETE": "FINISHED",
+            "STOPPED_BY_USER": "STOPPED",
+            "STOPPED_PAUSE_EXPIRED": "STOPPED",
+            "STOPPED_STORAGE_QUOTA_REACHED": "STOPPED",
+            "STOPPED_TIME_QUOTA_REACHED": "STOPPED",
+            "STOPPED_ORG_READONLY": "STOPPED"
         }
         return mapping.get(state.upper(), "UNKNOWN")
 

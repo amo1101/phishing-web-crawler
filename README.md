@@ -96,10 +96,14 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 - Safe browser API
     - A script under the safe-browsing folder, it exports all URLs from https://www.iosco.org/i-scan/, cleanses URLs, and get Google safe browsing report for each URL.
 
+
+## WACZ data processing:
+- Import to Browsertrix and replay
+- [waczerciser](https://github.com/harvard-lil/waczerciser): extracting WACZ files
+- [warc-gpt](https://github.com/harvard-lil/warc-gpt): RAG pipeline for web achive collections
+
 ## TODO
 - The crawling setting could be further optimised, e.g., 
     * URLs require login could not be crawled,potentially could be fixed by applying browser profiles.
     * Some web site could be very huge containing lots of articles, could use more fine-grained rules to execlude thoes pages.
-- WACZ file processing:
-    * [waczerciser](https://github.com/harvard-lil/waczerciser): extracting WACZ files
-    * [warc-gpt](https://github.com/harvard-lil/warc-gpt): RAG pipeline for web achive collections
+- Store achived files on AWS S3

@@ -23,3 +23,9 @@ def normalize_url(u: str) -> str:
 def registrable_domain(u: str) -> str:
     ext = tldextract.extract(u)
     return ".".join([ext.domain, ext.suffix]) if ext.suffix else ext.domain
+
+def url_start_with_domain(u: str) -> str:
+    """Extract the registrable domain and the URL starting from it."""
+    domain = registrable_domain(u)
+    idx = u.find(domain)
+    return u[idx:]
