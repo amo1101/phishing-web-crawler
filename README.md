@@ -19,7 +19,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 
 ## Installation
 
-- OS: Ubuntu
+- OS: Ubuntu 22 or above
 
 - Browsertrix
 
@@ -71,7 +71,9 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
     - A script under the safe-browsing folder, it exports all URLs from https://www.iosco.org/i-scan/, cleanses URLs, and get Google safe browsing report for each URL.
 
 ## TODO
-- URLs require login could not be crawled by Browsertrix, potentially could be fixed by applying Browsertrix browser profiles.
+- The crawling setting could be further optimised, e.g., 
+    * URLs require login could not be crawled,potentially could be fixed by applying browser profiles.
+    * Some web site could be very huge containing lots of articles, could use more fine-grained rules to execlude thoes pages.
 - WACZ file processing:
-    * [waczerciser](https://github.com/harvard-lil/waczerciser) for extracting WACZ files
+    * [waczerciser](https://github.com/harvard-lil/waczerciser): extracting WACZ files
     * [warc-gpt](https://github.com/harvard-lil/warc-gpt): RAG pipeline for web achive collections
