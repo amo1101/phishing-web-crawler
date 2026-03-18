@@ -57,7 +57,33 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
         pip install -r requirements.txt
         ```
 
-    - Configure the crawler by editing config.yaml
+    - Configure the crawler by editing config.yaml, key configrations:
+        ```
+        # database file path
+        state_db: "/home/uowadmin/iosco/data/state.db"
+
+        # Scheduling
+        schedule:
+        base_date: "2025-09-01"     # base date
+        daily_run_time: "13:00"     # local time for the daily ingestion
+
+        # Browsertrix integration
+        browsertrix:
+        ...
+        crawler_setting:
+            max_time: 86400  # max crawl time in seconds
+            max_size: 10737418240 # max crawl size in bytes
+            # crawler job frequency
+            # crontab format: min, hour, dom, mon, dow; e.g, "0 0 * * 1" run every Monday 00:00;
+            # run once if not specified
+            frequency: ""
+    
+        # Dead-site acquisition
+        wb_downloader:
+        output_dir: "/scratch/iosco/wayback"  # wayback downloader storage
+        concurrency: 3
+        ...
+        ```
     - Start the crawler
         ```
         python3 -m crawler.main --config config.yaml
