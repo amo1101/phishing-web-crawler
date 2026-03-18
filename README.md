@@ -10,7 +10,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 
 ## What Phishing-web-crawler does:
 1. Download the list of suspicious financial scam URLs reported by https://www.iosco.org/i-scan/, first time from a specified base date, and then incrementally on daily basis.
-2. Automatically clease the URLs from mutiple rows to get valid URLs.
+2. Automatically cleanse the URLs from multiple rows of exported csv to get valid URLs.
 3. Check the liveness of URLs.
 4. Schedule Browsertrix jobs to crawl live URLs.
     * prefix scope for domain URL
