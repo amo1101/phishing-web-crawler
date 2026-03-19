@@ -91,7 +91,7 @@ class BrowsertrixClient:
         TODO: for pages that requires login, we basically cannot crawl, not sure whether Browser Profile could work around it or not.
         """
         scope = "prefix"
-        if re.search(r"https?://(www\.)?(facebook|twitter|instagram|linkedin|pinterest|tiktok|youtube|play.google)\.com", url):
+        if re.search(r"https?://(www\.)?(facebook|twitter|x|instagram|linkedin|pinterest|tiktok|youtube|play.google)\.com", url):
             scope = "page"
             log.debug("Special handling for social media site: %s", url)
 
