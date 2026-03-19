@@ -60,3 +60,6 @@ logging:
     backupCount: 14           # keep last 14 files
   console: true               # also log to stdout (useful in dev)
   json: false                 # set true if you prefer JSON logs
+
+tool:
+  liveness_check_output: "/home/uowadmin/iosco/liveness"

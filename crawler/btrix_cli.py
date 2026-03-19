@@ -91,7 +91,7 @@ class BrowsertrixClient:
         TODO: for pages that requires login, we basically cannot crawl, not sure whether Browser Profile could work around it or not.
         """
         scope = "prefix"
-        if re.search(r"https?://(www\.)?(facebook|twitter|x|instagram|linkedin|pinterest|tiktok|youtube|play.google)\.com", url):
+        if re.search(r"https?://(www\.)?(facebook|twitter|discord|x|instagram|linkedin|pinterest|tiktok|youtube|play.google)(\.com)?", url):
             scope = "page"
             log.debug("Special handling for social media site: %s", url)
 
@@ -171,12 +171,13 @@ class BrowsertrixClient:
         Get the status of the lastest crawl with crawlconfig specified by job_name
         """
         job = self.list_crawlconfig(cid=job_name)
+        #log.debug("Job config for %s: %s", job_name, job)
         if not job:
             log.error("Crawl job not found: %s", job_name)
             return {"status":"FAILED"}
-        state = job.get("lastCrawlState", "UNKNOWN")
+        state = job.get("lastCrawlState") if job.get("lastCrawlState") else "UNKNOWN"
         crawl_count = job.get("crawlSuccessfulCount", 0)
-        crawl_pages = job.get("lastCrawlStats").get("done")
+        crawl_pages = job.get("lastCrawlStats").get("done", 0) if job.get("lastCrawlStats") else 0
         return {"status":self._convert_status(state),
                 "crawl_count": crawl_count,
                 "file_count":crawl_pages}
