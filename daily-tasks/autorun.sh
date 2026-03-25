@@ -28,7 +28,7 @@ iosco_url_liveness_check() {
 
 safe_browsing_report() {
     echo "Start running safe-browsing script..."
-    python3 $run_dir/safe-browsing.py --data_dir $output_base --regulators=$run_dir/regulatorDomains2025-10-02-manual.csv
+    python3 $run_dir/safe_browsing.py --data_dir $output_base --regulators=$run_dir/regulatorDomains2025-10-02-manual.csv
     echo "Finished running safe-browsing script..."
 }
 

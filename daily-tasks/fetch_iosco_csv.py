@@ -245,7 +245,7 @@ def parse_url_cols(row) -> list:
 
 def parse_csv_url_info(csv_path: Path):
     """Parse URLs from the given CSV file, store them into csv"""
-    urls: dict[str, Tuple[int, str, str, str]] = {}
+    urls: dict[str, Tuple[int, int, str, str, str]] = {}
     try:
         csv_df = pd.read_csv(csv_path, dtype=str, low_memory=False)
         for row in csv_df.itertuples():
@@ -258,7 +258,7 @@ def parse_csv_url_info(csv_path: Path):
             nca_jurisdiction = getattr(row, NCA_JURIS_COL)
             nca_name = getattr(row, NCA_NAME_COL)
             validation_date = getattr(row, VALIDATION_DATE_COL)
-            attrs = (nca_id, nca_jurisdiction, nca_name, validation_date)
+            attrs = (id, nca_id, nca_jurisdiction, nca_name, validation_date)
             for url in url_list:
                 tidyURL = tidy_raw_url(url)
                 urls[tidyURL] = attrs
@@ -273,8 +273,8 @@ def parse_csv_url_info(csv_path: Path):
     
     # Write results to CSV file
     output_df = pd.DataFrame([
-        {'url': url, NCA_ID_COL: attrs[0], NCA_JURIS_COL: attrs[1], 
-         NCA_NAME_COL: attrs[2], VALIDATION_DATE_COL: attrs[3]}
+        {'url': url, ID_COL: attrs[0], NCA_ID_COL: attrs[1], NCA_JURIS_COL: attrs[2],
+         NCA_NAME_COL: attrs[3], VALIDATION_DATE_COL: attrs[4]}
         for url, attrs in urls.items()
     ])
     output_df.to_csv(csv_path.parent / 'clean_urls.csv', index=False)
