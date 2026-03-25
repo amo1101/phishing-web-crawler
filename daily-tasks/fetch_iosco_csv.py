@@ -1,7 +1,7 @@
+from __future__ import annotations
 import sys
 from playwright.sync_api import sync_playwright
 from pathlib import Path
-from __future__ import annotations
 from pathlib import Path
 from datetime import date,datetime
 from typing import Optional
@@ -10,10 +10,38 @@ from typing import Dict, List, Tuple, Set
 from pathlib import Path
 import urlextract
 import pandas as pd
-from .normalize import normalize_url, registrable_domain, url_start_with_domain
-import logging
+import tldextract
+from urllib.parse import urlsplit, urlunsplit
+import re
 
 logging.basicConfig(level=logging.INFO)
+
+_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.+-]*://')
+
+def normalize_url(u: str) -> str:
+    """Normalize: strip fragments, default scheme to https, lowercase scheme/host."""
+    raw = (u or "").strip()
+    if "#" in raw:
+        raw = raw.split("#", 1)[0]
+
+    if not _SCHEME_RE.match(raw):
+        raw = "https://" + raw.lstrip("/")
+
+    parts = urlsplit(raw)
+    scheme = (parts.scheme or "https").lower()
+    netloc = parts.netloc.lower()
+    path   = parts.path or "/"
+    return urlunsplit((scheme, netloc, path, parts.query, ""))
+
+def registrable_domain(u: str) -> str:
+    ext = tldextract.extract(u)
+    return ".".join([ext.domain, ext.suffix]) if ext.suffix else ext.domain
+
+def url_start_with_domain(u: str) -> str:
+    """Extract the registrable domain and the URL starting from it."""
+    domain = registrable_domain(u)
+    idx = u.find(domain)
+    return u[idx:]
 
 ID_COL = "id"
 NCA_ID_COL = "nca_id"

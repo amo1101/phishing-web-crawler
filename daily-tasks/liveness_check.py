@@ -1,5 +1,5 @@
-import sys
 from __future__ import annotations
+import sys
 import socket
 from pathlib import Path
 import concurrent.futures as cf
@@ -9,6 +9,7 @@ import requests
 import logging
 from datetime import datetime
 import pandas as pd
+import traceback
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,7 +18,7 @@ def resolve_host(host: str) -> bool:
         socket.getaddrinfo(host, None)
         return True
     except Exception as e:
-        logging.warning("Skip, DNS resolution failed for host: %s, exception: %s", host, str(e))
+        logging.debug("Skip, DNS resolution failed for host: %s, exception: %s", host, str(e))
         return False
 
 def probe_url(url: str, timeout: int) -> Tuple[str, str]:
@@ -42,7 +43,7 @@ def probe_url(url: str, timeout: int) -> Tuple[str, str]:
     except requests.RequestException:
         return url, "dead"
 
-def classify_urls(urls: List[str], timeout: int, treat_4xx_as_live: bool=True, max_workers: int = 30) -> Dict[str, str]:
+def classify_urls(urls: List[str], timeout: int = 60, treat_4xx_as_live: bool=True, max_workers: int = 30) -> Dict[str, str]:
     """
     Returns {url: 'live'|'dead'} based on the *best* observed status among its URLs.
     """
@@ -70,13 +71,13 @@ def check_liveness(base_dir: Path):
     if not output_today.exists():
         logging.info('CSV file has not been downloaded today!')
         return
-    url_file = output_today + "clean_urls.csv"
+    url_file = output_today / "clean_urls.csv"
     url_df = pd.read_csv(url_file)
     urls = url_df['url'].tolist()
     url_status = classify_urls(urls)
-    url_df['is_live'] = url_df['url'].map(url_status)
+    url_df['liveness'] = url_df['url'].map(url_status)
     url_df.to_csv(url_file, index=False)
-    logging.iinfo("Liveness check completed, results saved to %s", url_file)
+    logging.info("Liveness check completed, results saved to %s", url_file)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -88,3 +89,4 @@ if __name__ == "__main__":
         check_liveness(Path(base_dir))
     except Exception as e:
         logging.error(f"An error occurred {e}")
+        traceback.print_exc()

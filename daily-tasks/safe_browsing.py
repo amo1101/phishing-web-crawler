@@ -77,7 +77,7 @@ else:
 
  # use the same folder as the csv file
 if args.csv == "":
-    newDirPath = Path(data_dir, today.isoformat())
+    newDirPath = Path(data_dir) / f"{datetime.now().strftime('%Y%m%d')}"
     # rely on daily task to download the csv file
     args.csv = str(newDirPath / 'iosco_export.csv') # download_csv(newDirPath)
 else:

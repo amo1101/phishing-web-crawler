@@ -31,7 +31,7 @@ def get_iosco_urls(
     return url_df.set_index('url').to_dict('index')
 
 def run_once(cfg: Config, st: State):
-    """Run one ingestion cycle: fetch CSV, parse URLs, classify liveness, enqueue jobs."""
+    """Run one ingestion cycle: fetch URLs, enqueue jobs."""
     now = datetime.now(timezone.utc)
     log.info("Daily run started at %s", now.isoformat())
 
@@ -68,8 +68,8 @@ def run_once(cfg: Config, st: State):
         job_type = LIVE_CRAWL
         job_desc = 'Live'
         job_priority = 50
-        nca_id, nca_jurisdiction, nca_name, validate_date, is_live = info
-        if not is_live:
+        nca_id, nca_jurisdiction, nca_name, validate_date, liveness = info
+        if liveness == 'dead':
             job_type = WAYBACK_DOWNLOAD
             job_desc = "wayback download"
             job_priority = 100
