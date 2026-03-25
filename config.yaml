@@ -4,8 +4,6 @@ state_db: "/home/uowadmin/iosco/data/state.db"
 iosco:
   csv_root: "/home/uowadmin/iosco/data/csv"
   nca_id: ""        # e.g., "64" for NZ; leave empty for all NCAs
-  subsection: "main"
-  request_timeout_seconds: 60
 
 # Scheduling
 schedule:
@@ -17,12 +15,6 @@ queue:
   max_parallel_download_jobs: 1
   max_retries: 3 # now applies only to wayback download jobs, retry for browsertrix crawl jobs is handled via tool.py manually
   reconcile_interval_seconds: 30 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
-
-# Liveness
-liveness:
-  timeout_seconds: 10
-  treat_http_4xx_as_live: true
-  max_parallel_probes: 30
 
 # Browsertrix integration
 browsertrix:
@@ -60,6 +52,3 @@ logging:
     backupCount: 14           # keep last 14 files
   console: true               # also log to stdout (useful in dev)
   json: false                 # set true if you prefer JSON logs
-
-tool:
-  liveness_check_output: "/home/uowadmin/iosco/liveness"

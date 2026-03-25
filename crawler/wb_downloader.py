@@ -6,9 +6,13 @@ import logging
 import subprocess
 import csv
 import uuid
-from .normalize import registrable_domain
+import tldextract
 
 log = logging.getLogger(__name__)
+
+def registrable_domain(u: str) -> str:
+    ext = tldextract.extract(u)
+    return ".".join([ext.domain, ext.suffix]) if ext.suffix else ext.domain
 
 def write_csv_file(csv_file, data, fieldnames=None):
     """write to csv file"""

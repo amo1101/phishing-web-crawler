@@ -1,17 +1,34 @@
 from __future__ import annotations
 from datetime import datetime, date, time as dtime, timedelta, timezone
 import time
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set, Optional
 from pathlib import Path
 from .config import Config
 from .state import State
-from .iosco import fetch_iosco_csv, parse_csv_url_info
-from .liveness import classify_urls
 from .jobqueue import LIVE_CRAWL, WAYBACK_DOWNLOAD
 import traceback
+import pandas as pd
 
 import logging
 log = logging.getLogger(__name__)
+
+# relies on daily task to download and parse urls and check liveness
+def get_iosco_urls(
+    csv_root: Path,
+    start_date: Optional[date],
+    end_date: Optional[date],
+    *,
+    nca_id: str = ""
+) -> Dict[str, bool]:
+    output_today = Path(csv_root) / f"{datetime.now().strftime('%Y%m%d')}"
+    if not output_today.exists():
+        return {}
+    url_df = pd.read_csv(output_today / 'clean_urls.csv')
+    if start_date and end_date:
+        url_df = url_df.query('validation_date >= @start_date and validation_date <= @end_date')
+    if nca_id:
+        url_df = url_df.query('nca_id == @nca_id')
+    return url_df.set_index('url').to_dict('index')
 
 def run_once(cfg: Config, st: State):
     """Run one ingestion cycle: fetch CSV, parse URLs, classify liveness, enqueue jobs."""
@@ -22,55 +39,37 @@ def run_once(cfg: Config, st: State):
     last_full = st.get_last_full_run()
     last_incr = st.get_last_incremental_run()
     csv_root = Path(cfg["iosco"]["csv_root"])
+    url_info = {}
 
     # Testing: force full run
     #last_full = None
     if last_full is None:
         # First full run from base_date
-        csv_path = fetch_iosco_csv(
+        url_info = get_iosco_urls(
             csv_root=csv_root,
             start_date=datetime.strptime(cfg["schedule"]["base_date"], '%Y-%m-%d').date(),
             end_date=now.date(),
-            nca_id=cfg["iosco"]["nca_id"],
-            subsection=cfg["iosco"]["subsection"],
-            timeout=int(cfg["iosco"]["request_timeout_seconds"])
+            nca_id=cfg["iosco"]["nca_id"]
         )
         st.set_last_full_run(now)
     else:
         # Incremental from last_incremental_run (or last_full if no incr yet) to now
         start = last_incr or last_full
-        csv_path = fetch_iosco_csv(
+        url_info = get_iosco_urls(
             csv_root=csv_root,
             start_date=start.date(),
             end_date=now.date(),
-            nca_id=cfg["iosco"]["nca_id"],
-            subsection=cfg["iosco"]["subsection"],
-            timeout=int(cfg["iosco"]["request_timeout_seconds"])
+            nca_id=cfg["iosco"]["nca_id"]
         )
         st.set_last_incremental_run(now)
 
-    # 2) Extract URLs and filter existing urls
-    log.info("CSV path %s", csv_path)
-    url_info = parse_csv_url_info(csv_path)
-    urls = list(url_info)
-    new_urls = [url for url in urls if not st.check_url_exists(url)]
-    log.info("New urls to crawl %d", len(new_urls))
-
-    # 3) URL liveness check
-    url_status = classify_urls(
-        urls=list(new_urls),
-        timeout=cfg["liveness"]["timeout_seconds"],
-        treat_4xx_as_live=cfg["liveness"]["treat_http_4xx_as_live"],
-        max_workers=cfg["liveness"]["max_parallel_probes"],
-    )
-
-    # 4) create crawling job or wayback download job
-    for url, status in url_status.items():
+    # 2) create crawling job or wayback download job
+    for url, info in url_info.items():
         job_type = LIVE_CRAWL
         job_desc = 'Live'
         job_priority = 50
-        nca_id, nca_jurisdiction, nca_name, validate_date = url_info[url]
-        if status == "dead":
+        nca_id, nca_jurisdiction, nca_name, validate_date, is_live = info
+        if not is_live:
             job_type = WAYBACK_DOWNLOAD
             job_desc = "wayback download"
             job_priority = 100

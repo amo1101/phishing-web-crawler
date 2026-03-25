@@ -78,7 +78,8 @@ else:
  # use the same folder as the csv file
 if args.csv == "":
     newDirPath = Path(data_dir, today.isoformat())
-    args.csv = download_csv(newDirPath)
+    # rely on daily task to download the csv file
+    args.csv = str(newDirPath / 'iosco_export.csv') # download_csv(newDirPath)
 else:
     newDirPath = Path(args.csv).parent
 
