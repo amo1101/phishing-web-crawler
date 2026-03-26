@@ -19,11 +19,14 @@ def get_iosco_urls(
     end_date: Optional[date],
     *,
     nca_id: str = ""
-) -> Dict[str, bool]:
+):
     output_today = Path(csv_root) / f"{datetime.now().strftime('%Y%m%d')}"
     if not output_today.exists():
         return {}
     url_df = pd.read_csv(output_today / 'clean_urls.csv')
+    url_df["validation_date"] = pd.to_datetime(url_df["validation_date"],
+                                               format="%Y-%m-%d",
+                                               errors="coerce").dt.date
     if start_date and end_date:
         url_df = url_df.query('validation_date >= @start_date and validation_date <= @end_date')
     if nca_id:
@@ -63,12 +66,18 @@ def run_once(cfg: Config, st: State):
         )
         st.set_last_incremental_run(now)
 
+    url_info_filtered = {k:v for k,v in url_info.items() if st.check_url_exists(k)}
+    total_urls = len(url_info_filtered)
+    live_urls = sum(1 for v in url_info_filtered.values() if str(v.get("liveness", "")).lower() == "live")
+    dead_urls = sum(1 for v in url_info_filtered.values() if str(v.get("liveness", "")).lower() == "dead")
+    log.info(f"Total URLs to process: {total_urls}, live: {live_urls}, dead: {dead_urls}")
+
     # 2) create crawling job or wayback download job
-    for url, info in url_info.items():
+    for url, info in url_info_filtered.items():
         job_type = LIVE_CRAWL
         job_desc = 'Live'
         job_priority = 50
-        nca_id, nca_jurisdiction, nca_name, validate_date, liveness = info
+        _, nca_id, nca_jurisdiction, nca_name, validate_date, liveness = info
         if liveness == 'dead':
             job_type = WAYBACK_DOWNLOAD
             job_desc = "wayback download"
