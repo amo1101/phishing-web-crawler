@@ -66,26 +66,31 @@ def run_once(cfg: Config, st: State):
         )
         st.set_last_incremental_run(now)
 
-    url_info_filtered = {k:v for k,v in url_info.items() if st.check_url_exists(k)}
+    url_info_filtered = {k:v for k,v in url_info.items() if not st.check_url_exists(k)}
     total_urls = len(url_info_filtered)
     live_urls = sum(1 for v in url_info_filtered.values() if str(v.get("liveness", "")).lower() == "live")
     dead_urls = sum(1 for v in url_info_filtered.values() if str(v.get("liveness", "")).lower() == "dead")
     log.info(f"Total URLs to process: {total_urls}, live: {live_urls}, dead: {dead_urls}")
 
     # 2) create crawling job or wayback download job
-    for url, info in url_info_filtered.items():
+    for k, v in url_info_filtered.items():
         job_type = LIVE_CRAWL
         job_desc = 'Live'
         job_priority = 50
-        _, nca_id, nca_jurisdiction, nca_name, validate_date, liveness = info
+        nca_id = v['nca_id']
+        liveness = v['liveness']
+        nca_jurisdiction = v['nca_jurisdiction']
+        nca_name = v['nca_name']
+        validate_date = v['validation_date'].isoformat()
+
         if liveness == 'dead':
             job_type = WAYBACK_DOWNLOAD
             job_desc = "wayback download"
             job_priority = 100
 
         st.add_nca(nca_id, nca_jurisdiction, nca_name)
-        st.enqueue_job_unique(job_type, url, nca_id, validate_date, job_priority)
-        log.info("Enqueued %s job for %s", job_desc, url)
+        st.enqueue_job_unique(job_type, k, nca_id, validate_date, job_priority)
+        log.info("Enqueued %s job for %s", job_desc, k)
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
