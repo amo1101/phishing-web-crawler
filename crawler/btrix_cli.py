@@ -20,6 +20,7 @@ class BrowsertrixClient:
         self.token: Optional[str] = None
         self.headers: Dict[str, str] = {}
         log.info("BrowsertrixClient initialized: base=%s", self.base)
+        self._login()
 
     def _get_collection_id(self):
         """
