@@ -112,6 +112,7 @@ class BrowsertrixClient:
             "config": {
                 "seeds": [{"url": url}],
                 "scopeType": scope,
+                "exclude": job_setting['exclude'].split(",") if job_setting.get("exclude") else [],
                 "blockAds": True
             }
         }
