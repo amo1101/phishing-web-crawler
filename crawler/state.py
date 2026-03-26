@@ -100,6 +100,15 @@ class State:
         """Set a meta value by key."""
         self.conn.execute("INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
 
+    def get_base_time(self) -> Optional[datetime]:
+        """Get the base time."""
+        v = self.get_meta("base_date")
+        return datetime.fromisoformat(v) if v else None
+
+    def set_base_time(self, dt: datetime) -> None:
+        """Set the base time."""
+        self.set_meta("base_date", dt.isoformat())
+
     def get_last_full_run(self) -> Optional[datetime]:
         """Get the timestamp of the last full run."""
         v = self.get_meta("last_full_run")

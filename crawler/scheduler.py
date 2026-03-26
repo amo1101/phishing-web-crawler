@@ -41,23 +41,29 @@ def run_once(cfg: Config, st: State):
     # 1) Decide full vs incremental
     last_full = st.get_last_full_run()
     last_incr = st.get_last_incremental_run()
+    base_time = st.get_base_time()
+    new_base = datetime.strptime(cfg["schedule"]["base_date"], "%Y-%m-%d")
     csv_root = Path(cfg["iosco"]["csv_root"])
     url_info = {}
 
-    # Testing: force full run
-    #last_full = None
-    if last_full is None:
+    # if base_time is updated, do a full run from base_time date to now; 
+    # otherwise do incremental from last_incremental_run (or last_full if no incr yet) to now
+    if base_time is None or new_base.date() < base_time.date():
         # First full run from base_date
         url_info = get_iosco_urls(
             csv_root=csv_root,
-            start_date=datetime.strptime(cfg["schedule"]["base_date"], '%Y-%m-%d').date(),
+            start_date=new_base.date(),
             end_date=now.date(),
             nca_id=cfg["iosco"]["nca_id"]
         )
         st.set_last_full_run(now)
+        st.set_base_time(new_base)
     else:
         # Incremental from last_incremental_run (or last_full if no incr yet) to now
         start = last_incr or last_full
+        if start is None:
+            log.warning("No last run info found, skipping incremental run")
+            return
         url_info = get_iosco_urls(
             csv_root=csv_root,
             start_date=start.date(),
