@@ -107,7 +107,6 @@ def run_once(cfg: Config, st: State):
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
-    return 0
     hh, mm = map(int, local_hhmm.split(":"))
     now = datetime.now()
     target = datetime.combine(now.date(), dtime(hh, mm))
