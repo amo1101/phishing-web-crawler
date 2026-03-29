@@ -51,6 +51,6 @@ logging:
   file: "/home/uowadmin/iosco/crawler.log"
   rotate:
     when: "midnight"          # Timed rotation; alternatives: "S","M","H","D","W0"-"W6"
-    backupCount: 14           # keep last 14 files
+    backupCount: 5           # keep last 5 files
   console: true               # also log to stdout (useful in dev)
   json: false                 # set true if you prefer JSON logs
