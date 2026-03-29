@@ -1,17 +1,17 @@
 # Global paths
-state_db: "/home/uowadmin/iosco/data/state.db"
+state_db: "/home/ubuntu/iosco/db/state.db"
 
 iosco:
-  csv_root: "/home/uowadmin/iosco/data/csv"
+  csv_root: "/home/ubuntu/iosco/daily"
   nca_id: ""        # e.g., "64" for NZ; leave empty for all NCAs
 
 # Scheduling
 schedule:
-  base_date: "2025-09-01"
+  base_date: "2000-01-01"
   daily_run_time: "13:00"     # local time for the daily ingestion + orchestration (24h)
 
 queue:
-  max_parallel_crawl_jobs: 5
+  max_parallel_crawl_jobs: 1
   max_parallel_download_jobs: 1
   max_retries: 3 # now applies only to wayback download jobs, retry for browsertrix crawl jobs is handled via tool.py manually
   reconcile_interval_seconds: 30 # how often the worker polls Browsertrix or wb downloader to refresh job statuses
@@ -20,7 +20,7 @@ queue:
 browsertrix:
   base_url: "http://localhost:30870"
   username: "admin@example.com"
-  password: "PASSWORD!"
+  password: "PASSW0RD!"
   org: "My Organization"
   collection: "iosco"
   crawler_setting:
@@ -33,13 +33,13 @@ browsertrix:
     frequency: ""
 # Dead-site acquisition
 wb_downloader:
-  output_dir: "/scratch/iosco/wayback"
+  output_dir: "/home/ubuntu/iosco/wayback"
   concurrency: 3          # how many files to download in parallel for Wayback downloads
 
 # Dashboard
 web:
   enable_status_page: true
-  host: "127.0.0.1"
+  host: "0.0.0.0"
   port: 8090
   basic_auth:
     enabled: false
@@ -48,9 +48,10 @@ web:
 
 logging:
   level: DEBUG                 # DEBUG | INFO | WARNING | ERROR
-  file: "/home/uowadmin/iosco/crawler.log"
+  file: "/home/ubuntu/iosco/log/crawler.log"
   rotate:
     when: "midnight"          # Timed rotation; alternatives: "S","M","H","D","W0"-"W6"
     backupCount: 5           # keep last 5 files
   console: true               # also log to stdout (useful in dev)
   json: false                 # set true if you prefer JSON logs
+

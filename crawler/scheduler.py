@@ -20,8 +20,10 @@ def get_iosco_urls(
     *,
     nca_id: str = ""
 ):
+    log.debug(f'csv_root: {str(csv_root)}, start_date: {start_date}, end_data: {end_date}')
     output_today = Path(csv_root) / f"{datetime.now().strftime('%Y%m%d')}"
     if not output_today.exists():
+        log.warning(f'folder for today: {str(output_today)} doest not exist!')
         return {}
     url_df = pd.read_csv(output_today / 'clean_urls.csv')
     url_df["validation_date"] = pd.to_datetime(url_df["validation_date"],
@@ -49,7 +51,6 @@ def run_once(cfg: Config, st: State):
     # if base_time is updated, do a full run from base_time date to now; 
     # otherwise do incremental from last_incremental_run (or last_full if no incr yet) to now
     if base_time is None or new_base.date() < base_time.date():
-        # First full run from base_date
         log.debug("Performing full run from base date %s", new_base.date())
         url_info = get_iosco_urls(
             csv_root=csv_root,
@@ -99,13 +100,14 @@ def run_once(cfg: Config, st: State):
             job_desc = "wayback download"
             job_priority = 100
 
+        nca_id = int(nca_id)
         st.add_nca(nca_id, nca_jurisdiction, nca_name)
         st.enqueue_job_unique(job_type, k, nca_id, validate_date, job_priority)
         log.info("Enqueued %s job for %s", job_desc, k)
 
 def _next_daily_time(local_hhmm: str) -> float:
     # returns seconds until next occurrence of local_hhmm
-    #return 0
+    return 0
     hh, mm = map(int, local_hhmm.split(":"))
     now = datetime.now()
     target = datetime.combine(now.date(), dtime(hh, mm))
@@ -130,3 +132,4 @@ def run_loop(cfg: Config, st: State):
             log.error('An exception occurred: %s', str(e))
             traceback.print_exc()
             time.sleep(5)
+

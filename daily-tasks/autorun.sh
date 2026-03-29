@@ -4,7 +4,7 @@ if [[ $# -lt 2 ]]; then
   exit 2
 fi
 
-run_dir="/home/uowadmin/Downloads/phishing-web-crawler/daily-tasks"
+run_dir="/home/ubuntu/phishing-web-crawler/daily-tasks"
 cmd="$1"
 output_base="$2"
 

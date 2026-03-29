@@ -116,6 +116,7 @@ class BrowsertrixClient:
                 "blockAds": True
             }
         }
+        log.debug(f'crawlsetting: {crawl_setting}')
         job_name = ""
         try:
             resp = self.add_crawlconfig(crawl_setting)
