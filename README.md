@@ -144,7 +144,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
      ```
 
 ## WACZ data processing:
-- Import to Browsertrix and replay (the self-deployed Browsertrix Cloud on EC2 cannot replay archived items until HTTPS is enabled).
+- Import to Browsertrix and replay (the self-deployed Browsertrix Cloud on EC2 cannot replay archived items unless HTTPS is enabled).
 - Use [replayweb.page](https://replayweb.page), it supports replaying WACZ files on AWS S3.
 - [waczerciser](https://github.com/harvard-lil/waczerciser): extracting WACZ files.
 - [warc-gpt](https://github.com/harvard-lil/warc-gpt): RAG pipeline for web achive collections.
