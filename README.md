@@ -3,19 +3,19 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 
 📍 Self-hosting [Browsertrix](https://docs.browsertrix.com/) for live websites crawling.
 
-📍 [wayback machine downloader](https://github.com/StrawberryMaster/wayback-machine-downloader.git) for "dead" websites downloading.
+📍 [WayBack Machine Downloader](https://github.com/StrawberryMaster/wayback-machine-downloader.git) for "dead" websites downloading.
 
 
 ![Alt Text](https://github.com/amo1101/phishing-web-crawler/blob/main/demo.gif)
 
 ## What Phishing-web-crawler does:
-1. Download the list of suspicious financial scam URLs reported by https://www.iosco.org/i-scan/, first time from a specified base date, and then incrementally on daily basis.
-2. Automatically cleanse the URLs from multiple rows of exported csv to get valid URLs.
+1. Download the list of suspicious financial scam URLs reported by https://www.iosco.org/i-scan/, first time from a specified base date, and then incrementally daily.
+2. Automatically cleanse the URLs from multiple rows of the exported CSV to get valid URLs.
 3. Check the liveness of URLs.
 4. Schedule Browsertrix jobs to crawl live URLs.
     * prefix scope for domain URL
     * page scope for social media pages, or URL with parameters specified.
-5. Schedule wayback machine download jobs to download the whole domain pages of the dead URLs.
+5. Schedule WayBack Machine Downloader jobs to download the whole domain pages of the dead URLs.
 
 ## Installation
 
@@ -23,7 +23,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 
 - Browsertrix
 
-    - Method 1: Deploy browsertrix on local machine, refer to: https://docs.browsertrix.com/deploy/local. Howerver, I cannot figure out how to enable superuser account with helm3 repo, so I chose method 2.
+    - Method 1: Deploy Browsertrix on the local machine, refer to: https://docs.browsertrix.com/deploy/local.
 
     - Method 2: After microk8s is installed, install Browsertrix from its git repo:
         ```
@@ -33,14 +33,14 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
         # under the root directory:
         microk8s helm3 upgrade --install -f ./chart/values.yaml -f ./chart/local.yaml btrix ./chart
 
-        # You may need to adjust crawler resource limit setting in chart/values.yaml, otherwise the crawler job may stuck at: "Waiting (At Capacity)" (refer to the values.yaml.patch under the phishing-web-crawler repo for configuration on my machine which is Intel i5-8600K cpu + 32G memory). After adjusting the configuration, run the above command again to enable the change.
+        # You may need to adjust the crawler resource limit setting in the chart/values.yaml, otherwise the crawler job may get stuck as "Waiting (At Capacity)" (refer to the values.yaml.patch under the phishing-web-crawler repo for configuration on my machine, which is Intel i5-8600K CPU + 32G memory). After adjusting the configuration, run the command above again to apply the change.
         ```
-    - Now login to the Browsertrix home page: http://localhost:30870, and login with superuser account (see "superuser" in chart/local.yaml).
+    - Now, log in to the Browsertrix home page: http://localhost:30870, and log in with a superuser account (see "superuser" in chart/local.yaml).
     - You could use the default organization, and optionally you could create a collection.
 
-- wayback machine downloader
+- Wayback Machine Downloader
 
-    - Install wayback machine downloader on local machine (NOT docker version), refer to: https://github.com/StrawberryMaster/wayback-machine-downloader. 
+    - Install Wayback Machine Downloader on local machine (NOT Docker version), refer to: https://github.com/StrawberryMaster/wayback-machine-downloader. 
     - Make sure you can run it from the command line, e.g.:
         ```
         wayback_machine_downloader --version
@@ -48,7 +48,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 
 - Phishing web crawler
 
-    - Download this repo and install the required packages, using python3 venv is recommended.
+    - Download this repo and install the required packages; using python3 venv is recommended.
         
         ```
         # under the root directory of the repo
@@ -57,14 +57,14 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
         pip install -r requirements.txt
         ```
 
-    - Configure the crawler by editing config.yaml, key configrations:
+    - Configure the crawler by editing the config.yaml, key configurations:
         ```
-        # database file path
-        state_db: "/home/uowadmin/iosco/data/state.db"
+        # Database file path
+        state_db: "/home/ubuntu/iosco/db/state.db"
 
         # Scheduling
         schedule:
-        base_date: "2025-09-01"     # base date
+        base_date: "2000-01-01"     # base date
         daily_run_time: "13:00"     # local time for the daily ingestion
 
         # Browsertrix integration
@@ -73,6 +73,8 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
         crawler_setting:
             max_time: 86400  # max crawl time in seconds
             max_size: 10737418240 # max crawl size in bytes
+            # list of pages to exclude from crawling, supports matching text or regex, refer to Browsertrix docs for details.
+            exclude: "www.google.com"
             # crawler job frequency
             # crontab format: min, hour, dom, mon, dow; e.g, "0 0 * * 1" run every Monday 00:00;
             # run once if not specified
@@ -80,30 +82,74 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
     
         # Dead-site acquisition
         wb_downloader:
-        output_dir: "/scratch/iosco/wayback"  # wayback downloader storage
+        output_dir: "/home/ubuntu/iosco/wayback"  # wayback downloader storage
         concurrency: 3
         ...
         ```
+    - Create crontab jobs (the crawler relies on results from daily tasks a and b, make sure crontab jobs are created before starting the crawler)
+        ```
+        # There are 3 daily tasks:
+        # a. Download the isoco CSV (including all entries), and parse all URLs and cleanse them.
+        # b. Check the liveness of all URLs produced by task a.
+        # c. Query the safe browsing report for all URLs.
+        
+        # Additionally, there are 3 data backup tasks that backup data to AWS S3:
+        # d. Daily backup for downloaded pages by the Wayback Machine Downloader
+        # e. Weekly backup for data generated by daily tasks, including exported CSV files, clean URLs (with liveness status), and safe browsing reports
+        # f. Weekly backup for the database file.
+        
+        # To create these crontab jobs for these tasks, under the project root directory, run:
+        ./daily_tasks/crontab.sh
+        ```
     - Start the crawler
         ```
+        # Under the project root directory
         python3 -m crawler.main --config config.yaml
         ```
     - Start the web page to check the crawler job status:
         ```
+        # Under the project root directory
         python3 -m crawler.webapp --config config.yaml
         ```
 
-- Safe browser API
-    - A script under the safe-browsing folder, it exports all URLs from https://www.iosco.org/i-scan/, cleanses URLs, and get Google safe browsing report for each URL.
-
+## Maintenance:
+- Browsertrix cloud: http://xxx.xxx.xxx.xxx:30870
+- Crawler job status web page: http://xxx.xxx.xxx.xxx:8090
+- tool.py provides some commands for maintenance purposes, e.g, retry all failed/stopped/canceled crawler jobs, purge all live crawler jobs, etc.
+- Data storage:
+     ```
+     # Browsertrix crawls stores the achieved WACZ files to AWS S3 directly as configured.
+     # The following data is stored locally, and backed up to AWS S3 via backup tasks d~f
+     ubuntu@ip-xx-xx-xx-xx:~/iosco$ tree -L 2
+      .
+      ├── daily                           <- daily tasks results
+      │   ├── 20260328
+      │   └── 20260329
+      ├── db                              <- database
+      │   └──state.db
+      ├── log                             <- log files
+      │   ├── crawler.log
+      │   ├── crawler.log.2026-03-23
+      │   ├── ...
+      │   └── cron.log
+      └── wayback                         <- Dead sites downloaded by Wayback Machine downloader
+          ├── wb_download.csv
+          ├── wethioproperties.com
+          ├── winstomtrading.com
+          ├── wlinc.com
+          ├── ...
+          ├── x-tidexweb.com
+          ├── zenithexchange.ltd
+          └── zenithexchange.net
+     ```
 
 ## WACZ data processing:
-- Import to Browsertrix and replay
-- [waczerciser](https://github.com/harvard-lil/waczerciser): extracting WACZ files
-- [warc-gpt](https://github.com/harvard-lil/warc-gpt): RAG pipeline for web achive collections
+- Import to Browsertrix and replay (the self-deployed Browsertrix Cloud on EC2 cannot replay archived items until HTTPS is enabled).
+- Use [replayweb.page](https://replayweb.page), it supports replaying WACZ files on AWS S3.
+- [waczerciser](https://github.com/harvard-lil/waczerciser): extracting WACZ files.
+- [warc-gpt](https://github.com/harvard-lil/warc-gpt): RAG pipeline for web achive collections.
 
 ## TODO
 - The crawling setting could be further optimised, e.g., 
-    * URLs require login could not be crawled,potentially could be fixed by applying browser profiles.
-    * Some web site could be very huge containing lots of articles, could use more fine-grained rules to execlude thoes pages.
-- Store achived files on AWS S3
+    * URLs that require login could not be crawled; this could potentially be fixed by applying browser profiles.
+    * Some websites could be very huge, containing lots of articles, and could use more fine-grained rules to exclude those pages.
