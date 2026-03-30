@@ -103,6 +103,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
         ```
     - Start the crawler
         ```
+        # I prefer to execute the command inside a session created using the 'screen' command, so you can leave it running in the background.
         # Under the project root directory
         python3 -m crawler.main --config config.yaml
         ```
