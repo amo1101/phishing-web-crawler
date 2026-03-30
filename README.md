@@ -113,8 +113,8 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
         ```
 
 ## Maintenance:
-- Browsertrix cloud: http://xxx.xxx.xxx.xxx:30870
-- Crawler job status web page: http://xxx.xxx.xxx.xxx:8090
+- self-deployed Browsertrix Cloud: http://[BROWSERTRIX_CLOUD_IP_ADDRESS]:30870
+- Crawler job status web page: http://[BROWSERTRIX_CLOUD_IP_ADDRESS]:8090
 - tool.py provides some commands for maintenance purposes, e.g, retry all failed/stopped/canceled crawler jobs, purge all live crawler jobs, etc.
 - Data storage:
      ```
