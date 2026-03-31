@@ -19,9 +19,10 @@ queue:
 # Browsertrix integration
 browsertrix:
   base_url: "http://localhost:30870"
-  username: "admin@example.com"
-  password: "PASSW0RD!"
-  org: "My Organization"
+  username: "xxxxxxxx" # set your Browsertrix username
+  password: "xxxxxxxx" # set your Browsertrix password
+  org: "My Organization" # set your Browsertrix organization
+  # set your Browsertrix collection name here, all jobs will be added to this collection; leave empty if not using collections
   collection: "iosco"
   crawler_setting:
     max_time: 86400  # max crawl time in seconds
