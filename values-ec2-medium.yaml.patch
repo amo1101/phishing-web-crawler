@@ -1,0 +1,82 @@
+diff --git a/chart/values.yaml b/chart/values.yaml
+index b7bd97ba..04f9a10a 100644
+--- a/chart/values.yaml
++++ b/chart/values.yaml
+@@ -120,7 +120,7 @@ backend_worker_timeout: 60
+ 
+ backend_cpu: "100m"
+ 
+-backend_memory: "350Mi"
++backend_memory: "512Mi"
+ 
+ # port for operator service
+ opPort: 8756
+@@ -322,26 +322,26 @@ crawl_retries: 1000
+ # -----------------
+ 
+ # base cpu for for 1 browser
+-crawler_cpu_base: 900m
++crawler_cpu_base: 600m
+ 
+ # base memory per for 1 browser
+ crawler_memory_base: 1024Mi
+ 
+ # number of browser workers per crawler instances
+-crawler_browser_instances: 2
++crawler_browser_instances: 1
+ 
+ # number of browser workers per QA pod to run for QA runs
+ # defaults to 'crawler_browser_instances' if not set
+ qa_browser_instances: 1
+ 
+ # number of browser windows to run for QA (with 'qa_browser_instances' per pod)
+-qa_num_browser_windows: 2
++qa_num_browser_windows: 1
+ 
+ # this value is added to crawler_cpu_base, for each additional browser
+ # crawler_cpu = crawler_cpu_base + crawler_pu_per_extra_browser * (crawler_browser_instances - 1)
+-crawler_extra_cpu_per_browser: 600m
++crawler_extra_cpu_per_browser: 50m
+ 
+-crawler_extra_memory_per_browser: 768Mi
++crawler_extra_memory_per_browser: 256Mi
+ 
+ # if not set, defaults to the following, but can be overridden directly:
+ # crawler_cpu = crawler_cpu_base + crawler_cpu_per_extra_browser * (crawler_browser_instances - 1)
+@@ -438,7 +438,7 @@ grace_period: 1000
+ # Local Minio Pod (optional)
+ # =========================================
+ # set to true to use a local minio image
+-minio_local: true
++minio_local: false
+ 
+ # enable to allow access to minio console via specified port
+ # minio_local_console_port: 30091
+@@ -455,7 +455,7 @@ minio_local_bucket_name: &local_bucket_name "btrix-data"
+ minio_access_path: &minio_access_path "/data/"
+ 
+ minio_cpu: "10m"
+-minio_memory: "1024Mi"
++minio_memory: "256Mi"
+ 
+ # Storage
+ # =========================================
+@@ -464,12 +464,13 @@ minio_memory: "1024Mi"
+ storages:
+   - name: "default"
+     type: "s3"
+-    access_key: "ADMIN"
+-    secret_key: "xxxxxxxx"
+-    bucket_name: *local_bucket_name
++    access_key: "xxxxxxxxxxxx"
++    secret_key: "xxxxxxxxxxxx"
+ 
+-    endpoint_url: "http://local-minio:9000/"
+-    access_endpoint_url: *minio_access_path
++      #endpoint_url: "https://btrix-crawls-613404686575-ap-southeast-2-an.s3.ap-southeast-2.amazonaws.com/"
++    endpoint_url: "https://s3.ap-southeast-2.amazonaws.com/btrix-crawls-613404686575-ap-southeast-2-an/"
++    region: "ap-southeast-2"
++    is_default_primary: true
+ 
+     #access_addressing_style: 'path' or 'virtual'
+     # determine if bucket should be accessed as:
