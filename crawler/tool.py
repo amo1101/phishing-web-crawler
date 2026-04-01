@@ -40,7 +40,7 @@ def add_crawl_to_collection(cfg: Config):
 # you may want to resume crawls after adjust resources for k8s crawler pods
 def retry_crawl_jobs(cfg: Config):
     state = State(cfg["state_db"])
-    state.retry_live_crawl_jobs()
+    state.retry_crawl_jobs()
 
 # Rebuild jobs info from existing jobs in Browsertrix and WBDownloader in case of state db loss
 def rebuild_jobs_info(cfg: Config):
