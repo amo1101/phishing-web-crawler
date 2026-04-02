@@ -28,7 +28,7 @@ browsertrix:
     max_time: 86400  # max crawl time in seconds
     max_size: 5368709120 # max crawl size in bytes
     # list of pages to exclude from crawling, supports matche text or regex, refer to Browsertrix docs for details.
-    exclude: "www.google.com"
+    exclude: "www.google.com, .*/blog/.*, .*/news/.*, .*/newsroom/.*"
     # crontab format frequency: min, hour, dom, mon, dow; e.g, "0 0 * * 1" run every Monday 00:00;
     # run once if not specified
     frequency: ""
