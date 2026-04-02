@@ -110,10 +110,10 @@ class BrowsertrixClient:
             "maxCrawlSize": job_setting['max_size'],
             "autoAddCollections": [self.collection_id],
             "config": {
-                "seeds": [{"url": url}],
-                "scopeType": scope,
-                "exclude": job_setting['exclude'].split(",") if job_setting.get("exclude") else [],
-                "blockAds": True
+            "seeds": [{"url": url}],
+            "scopeType": scope,
+            "exclude": [item.strip() for item in job_setting['exclude'].split(",")] if job_setting.get("exclude") else [],
+            "blockAds": True
             }
         }
         log.debug(f'crawlsetting: {crawl_setting}')
