@@ -85,13 +85,14 @@ class BrowsertrixClient:
 
     def create_job(self, url: str,  job_desc: str, job_setting: Dict) -> str:
         """Create and start a crawl job for the given URL.
-        Crawl scope default to prefix, but for the following URLs, use page scope:
+        Crawl scope default to custom, with include regex to limit the crawl within the same prefix.
+        However, for the following URLs, use page scope:
         1) facebook.com, twitter.com, instagram.com, linkedin.com,
            pinterest.com, play.google.com, tiktok.com, youtube.com.
         2) URLs with parameters.
         TODO: for pages that requires login, we basically cannot crawl, not sure whether Browser Profile could work around it or not.
         """
-        scope = "prefix"
+        scope = "custom"
         if re.search(r"https?://(www\.)?(facebook|twitter|discord|x|instagram|linkedin|pinterest|tiktok|youtube|play.google)(\.com)?", url):
             scope = "page"
             log.debug("Special handling for social media site: %s", url)
@@ -100,6 +101,12 @@ class BrowsertrixClient:
         if re.search(r"\?.+=.+", url):
             scope = "page"
             log.debug("Setting scope to 'page' for URL with params: %s", url)
+            include_regex = ""
+        else:
+            scheme = "https" if url.startswith("https://") else "http"
+            include_regex = url.replace(".", r"\.").replace(scheme, r'^https?').replace(r'www\.', r'(www\.)?')
+            if not include_regex.endswith("/"):
+                include_regex += "(/|$)"
 
         crawl_setting = {
             "runNow": True,
@@ -112,6 +119,7 @@ class BrowsertrixClient:
             "config": {
             "seeds": [{"url": url}],
             "scopeType": scope,
+            "include": [include_regex] if include_regex else [],
             "exclude": [item.strip() for item in job_setting['exclude'].split(",")] if job_setting.get("exclude") else [],
             "blockAds": True
             }
