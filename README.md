@@ -75,7 +75,7 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
             max_size: 10737418240 # max crawl size in bytes
             # list of pages to exclude from crawling, supports matching text or regex, refer to Browsertrix docs for details.
             exclude: "www.google.com"
-            # crawler job frequency
+            #  TODO: crawl job frequency
             # crontab format: min, hour, dom, mon, dow; e.g, "0 0 * * 1" run every Monday 00:00;
             # run once if not specified
             frequency: ""
@@ -153,5 +153,6 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 ## TODO
 - The crawling setting could be further optimised, e.g., 
     * URLs that require login could not be crawled; this could potentially be fixed by applying browser profiles.
+    * A crawl job could be configured to run periodically in Browsertrix via config: "crawl job frequency", but currently only the first crawl is tracked.
     * Some websites could be huge, containing lots of articles, and could use more fine-grained rules to exclude those pages.
-    * Downloaded dead sites could be huge as well; make sure there is enough disk space to "cache" them before they are transferred to S3, e.g., 40~50G
+    * Downloaded dead sites could be huge as well; make sure there is enough disk space to "cache" them before they are transferred to S3, e.g., 40~50G.
