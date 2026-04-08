@@ -154,3 +154,4 @@ A tool for archiving phishing websites reported by [IOSCO](https://www.iosco.org
 - The crawling setting could be further optimised, e.g., 
     * URLs that require login could not be crawled; this could potentially be fixed by applying browser profiles.
     * Some websites could be very huge, containing lots of articles, and could use more fine-grained rules to exclude those pages.
+    * Downloaded dead sites could be huge; make sure there is enough disk space before they are transferred to S3.
