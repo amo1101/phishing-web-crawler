@@ -226,8 +226,8 @@ class State:
             (status, now, job_id)
         )
 
-    def retry_crawl_jobs(self):
-        """Mark a job as the specified status."""
+    def retry_jobs(self):
+        """Retry all failed or canceled or stopped jobs."""
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             "UPDATE jobs SET status='PENDING', updated_at=? WHERE status='FAILED' or status='CANCELED' or status='STOPPED'",
@@ -358,3 +358,9 @@ class State:
         """Get list of unique NCA jurisdictions"""
         rows = self.conn.execute("SELECT DISTINCT nca_jurisdiction FROM ncas ORDER BY nca_jurisdiction").fetchall()
         return [r[0] for r in rows]
+
+    def purge_all_crawl_jobs(self):
+        """Permanently delete all failed crawl jobs."""
+        self.conn.execute(
+            "DELETE FROM jobs WHERE status='FAILED' AND type='LIVE_CRAWL'"
+        )

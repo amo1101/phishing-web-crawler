@@ -328,23 +328,26 @@ class BrowsertrixClient:
 
         return crawls
 
-    def purge_all_crawls(self, crawl_ids: list[str] = []):
+    def purge_all_crawls(self, only_failed: bool = False):
         """
         Remove all crawls
         """
         if not crawl_ids:
             crawls = self.list_crawls()
-            crawl_ids = [c["id"] for c in crawls]
+            crawl_ids = [c["id"] for c in crawls
+                         if not only_failed or c.get("state","") == "failed"]
         if len(crawl_ids) > 0:
             path = f"/api/orgs/{self.org_id}/all-crawls/delete"
             self._request("post", path, json={"crawl_ids": crawl_ids})
 
-    def purge_all_crawlconfigs(self):
+    def purge_all_crawlconfigs(self, only_failed: bool = False):
         """
         Remove all crawlconfigs, only for test
         """
         configs = self.list_crawlconfigs()
         for config in configs:
+            if only_failed and config.get("lastCrawlState","") != "failed":
+                continue
             self.del_crawlconfig(config["id"])
 
     def add_crawl_to_collection(self, crawl_ids: List[str]) -> Dict:

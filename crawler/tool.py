@@ -38,9 +38,9 @@ def add_crawl_to_collection(cfg: Config):
 
 # retry all cancelled or failed, canceled or stopped crawls
 # you may want to resume crawls after adjust resources for k8s crawler pods
-def retry_crawl_jobs(cfg: Config):
+def retry_jobs(cfg: Config):
     state = State(cfg["state_db"])
-    state.retry_crawl_jobs()
+    state.retry_jobs()
 
 # Rebuild jobs info from existing jobs in Browsertrix and WBDownloader in case of state db loss
 def rebuild_jobs_info(cfg: Config):
@@ -49,7 +49,7 @@ def rebuild_jobs_info(cfg: Config):
     jq.rebuild_job_info()
 
 # Permanently purge all crawls and crawl configs in Browsertrix, use with caution
-def purge_all_crawl_jobs(cfg: Config):
+def purge_all_crawl_jobs(cfg: Config, only_failed: bool = True):
     btrix = BrowsertrixClient(
         base_url=cfg["browsertrix"]["base_url"],
         username=cfg["browsertrix"]["username"],
@@ -57,8 +57,11 @@ def purge_all_crawl_jobs(cfg: Config):
         org=cfg["browsertrix"]["org"],
         collection=cfg["browsertrix"]["collection"]
     )
-    btrix.purge_all_crawls()
-    btrix.purge_all_crawlconfigs()
+    btrix.purge_all_crawls(only_failed)
+    btrix.purge_all_crawlconfigs(only_failed)
+
+    state = State(cfg["state_db"])
+    state.purge_all_crawl_jobs()
 
 def main():
     ap = argparse.ArgumentParser()
@@ -75,11 +78,11 @@ def main():
         update_crawl_configs(cfg)
     elif args.command == "add_crawl_to_collection":
         add_crawl_to_collection(cfg)
-    elif args.command == "retry_crawl_jobs":
-        retry_crawl_jobs(cfg)
+    elif args.command == "retry_jobs":
+        retry_jobs(cfg)
     elif args.command == "rebuild_jobs_info":
         rebuild_jobs_info(cfg)
-    elif args.command == "purge_all_crawl_jobs":
+    elif args.command == "purge_all_failed_jobs":
         purge_all_crawl_jobs(cfg)
     else:
         print(f"Unknown command: {args.command}")

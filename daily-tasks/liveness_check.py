@@ -4,7 +4,7 @@ import socket
 from pathlib import Path
 import concurrent.futures as cf
 from typing import Tuple, Dict, List
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlparse
 import requests
 import logging
 from datetime import datetime
@@ -25,23 +25,33 @@ def probe_url(url: str, timeout: int) -> Tuple[str, str]:
     """
     Returns (url, 'live'|'dead')
     """
-    try:
-        parts = urlsplit(url)
-        if not parts.netloc:
-            logging.debug('no netloc')
-            return url, "dead"
-        if not resolve_host(parts.hostname):
-            logging.debug('resolve host failed')
-            return url, "dead"
-        # Try HEAD; fallback GET
-        r = requests.head(url, allow_redirects=True, timeout=timeout)
-        logging.debug("HEAD %s -> %s", url, r.status_code)
-        if r.status_code >= 500:
-            logging.debug("HEAD %s -> network error", url)
-            return url, "dead"
-        return url, "live"
-    except requests.RequestException:
+    # must be in the same domain (or subdomain) as the original URL,
+    # otherwise it may be a redirect to a different site (e.g., ad/tracking)
+    original_domain = urlparse(url).netloc
+    def check(r):
+        final_domain = urlparse(r.url).netloc
+        return r.status_code < 500 and \
+            (original_domain == final_domain or \
+             original_domain.endswith("." + final_domain) or \
+             final_domain.endswith("." + original_domain))
+
+    parts = urlsplit(url)
+    if not parts.netloc:
+        logging.debug('no netloc')
         return url, "dead"
+    if not resolve_host(parts.hostname):
+        logging.debug('resolve host failed')
+        return url, "dead"
+
+    try:
+        r = requests.get(url, stream=True, allow_redirects=True, timeout=timeout)
+        logging.debug("GET %s -> %s", url, r.status_code)
+        if check(r):
+            return url, "live"
+    except requests.RequestException:
+        pass
+    return url, "dead"
+
 
 def classify_urls(urls: List[str], timeout: int = 60, treat_4xx_as_live: bool=True, max_workers: int = 30) -> Dict[str, str]:
     """
