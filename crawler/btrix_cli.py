@@ -332,10 +332,9 @@ class BrowsertrixClient:
         """
         Remove all crawls
         """
-        if not crawl_ids:
-            crawls = self.list_crawls()
-            crawl_ids = [c["id"] for c in crawls
-                         if not only_failed or c.get("state","") == "failed"]
+        crawls = self.list_crawls()
+        crawl_ids = [c["id"] for c in crawls
+                     if not only_failed or c.get("state","") == "failed"]
         if len(crawl_ids) > 0:
             path = f"/api/orgs/{self.org_id}/all-crawls/delete"
             self._request("post", path, json={"crawl_ids": crawl_ids})
